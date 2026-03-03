@@ -66,3 +66,4 @@ client/src/
 - **Navigation**: Electracom logo is clickable (returns to landing page). Home button appears in header when not on landing page. Session auto-saves to localStorage, resume banner appears when returning home.
 - **QR hover tooltip**: QR code images show payload data on hover (via title attribute), not just asset tag name
 - **PNG download**: Uses anchor element download (not file-saver saveAs) to avoid Windows Security warnings
+- **Mobile responsive**: Full mobile/tablet support via `useIsMobile` hook (768px breakpoint). Header compact on mobile (icon-only preset, hidden text). Landing page reduced padding. Data table → card view on mobile. Results action bar stacks vertically with icon-only buttons. Config panel full-width on mobile. Scan viewer reduced padding. Session banner stacks vertically.

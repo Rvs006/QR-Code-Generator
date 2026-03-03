@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon } from 'lucide-react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon, Menu } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
 import { parseFile, parseFileRaw, applyMapping, autoMapColumns, partialAutoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
 import { exportToZip } from '@/lib/zip-exporter';
@@ -58,6 +59,7 @@ function validateRows(data: ParsedRow[]): RowData[] {
 }
 
 export default function Home() {
+  const isMobile = useIsMobile();
   const [dark, setDark] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('ec-theme');
@@ -633,21 +635,23 @@ export default function Home() {
 
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #00B0F0, #F5A623, #4CAF50, #9C27B0, #E53935)' }} />
 
-      <header className="sticky top-0 z-50 backdrop-blur-xl px-6 py-3 flex items-center gap-4" style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
-        <div className="flex items-center gap-3">
-          <img src={logoPath} alt="Electracom" className="h-10 object-contain cursor-pointer" style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
-          <div className="w-px h-7" style={{ background: c.bdr }} />
-          <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
+      <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
+        <div className="flex items-center gap-2 min-w-0">
+          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-8' : 'h-10'} object-contain cursor-pointer flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
+          {!isMobile && <>
+            <div className="w-px h-7" style={{ background: c.bdr }} />
+            <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
+          </>}
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
           {appState !== 'empty' && (
             <button data-testid="button-home" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className="w-4 h-4" /></button>
           )}
           <div className="relative">
-            <button data-testid="button-preset-dropdown" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
+            <button data-testid="button-preset-dropdown" className={`flex items-center gap-1.5 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[13px] transition-colors`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
               <Zap className="w-3.5 h-3.5 text-[#F5A623]" />
-              <span>{activePreset === 'custom' ? 'Custom' : PRESETS[activePreset]?.name}</span>
+              {!isMobile && <span>{activePreset === 'custom' ? 'Custom' : PRESETS[activePreset]?.name}</span>}
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {showPresetDropdown && (
@@ -672,7 +676,7 @@ export default function Home() {
 
           <button data-testid="button-settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>
 
-          <div className="relative">
+          {!isMobile && <div className="relative">
             <button data-testid="button-recent-files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
             {showRecentFiles && (
               <div className="absolute right-0 top-full mt-1 w-72 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
@@ -688,7 +692,7 @@ export default function Home() {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
 
           <button data-testid="button-help" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className="w-4 h-4" /></button>
 
@@ -698,11 +702,11 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-[1080px] mx-auto px-6 py-7">
+      <div className={`max-w-[1080px] mx-auto ${isMobile ? 'px-3 py-4' : 'px-6 py-7'}`}>
         {showSessionBanner && appState === 'empty' && (
-          <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-5" style={{ background: d ? 'rgba(42,90,158,0.12)' : 'rgba(42,90,158,0.06)', border: `1px solid ${d ? 'rgba(42,90,158,0.3)' : 'rgba(42,90,158,0.15)'}` }} data-testid="banner-session">
+          <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} rounded-xl px-4 py-3 mb-5`} style={{ background: d ? 'rgba(42,90,158,0.12)' : 'rgba(42,90,158,0.06)', border: `1px solid ${d ? 'rgba(42,90,158,0.3)' : 'rgba(42,90,158,0.15)'}` }} data-testid="banner-session">
             <div className="flex items-center gap-2">
-              <RotateCcw className="w-4 h-4 text-[#2A5A9E]" />
+              <RotateCcw className="w-4 h-4 text-[#2A5A9E] flex-shrink-0" />
               <span className="text-[13px]" style={{ color: c.tx2 }}>You have a previous session. Resume where you left off?</span>
             </div>
             <div className="flex items-center gap-2">
@@ -713,16 +717,16 @@ export default function Home() {
         )}
 
         {appState === 'empty' && (
-          <div className="flex flex-col items-center pt-16">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: `1px solid ${c.bdr}` }}>
-              <QrCode className="w-8 h-8 text-[#2A5A9E]" />
+          <div className={`flex flex-col items-center ${isMobile ? 'pt-6' : 'pt-16'}`}>
+            <div className={`${isMobile ? 'w-12 h-12 rounded-xl mb-4' : 'w-16 h-16 rounded-2xl mb-6'} flex items-center justify-center`} style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: `1px solid ${c.bdr}` }}>
+              <QrCode className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} text-[#2A5A9E]`} />
             </div>
-            <h1 className="text-2xl font-bold mb-2" data-testid="text-heading">Generate QR Code Labels</h1>
-            <p className="text-[15px] mb-8 text-center max-w-md" style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
+            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-2`} data-testid="text-heading">Generate QR Code Labels</h1>
+            <p className={`${isMobile ? 'text-[13px]' : 'text-[15px]'} mb-6 text-center max-w-md px-2`} style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
 
             <div
               data-testid="dropzone"
-              className="w-full max-w-lg border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer group transition-all"
+              className={`w-full max-w-lg border-2 border-dashed rounded-2xl ${isMobile ? 'p-6' : 'p-12'} text-center cursor-pointer group transition-all`}
               style={{ borderColor: isDragging ? '#2A5A9E' : c.bdr, background: isDragging ? (d ? 'rgba(42,90,158,0.08)' : 'rgba(42,90,158,0.04)') : 'transparent' }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.background = d ? 'rgba(42,90,158,0.05)' : 'rgba(42,90,158,0.03)'; }}
               onMouseLeave={(e) => { if (!isDragging) { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.background = 'transparent'; } }}
@@ -731,18 +735,18 @@ export default function Home() {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <img src={logoPath} alt="Electracom" className="h-14 object-contain mx-auto mb-5" style={{ filter: d ? 'brightness(1.8)' : 'none', opacity: 0.5 }} />
-              <Upload className="w-10 h-10 mx-auto mb-4 transition-colors" style={{ color: c.tx3 }} />
+              <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-10 mb-3' : 'h-14 mb-5'} object-contain mx-auto`} style={{ filter: d ? 'brightness(1.8)' : 'none', opacity: 0.5 }} />
+              <Upload className={`${isMobile ? 'w-8 h-8 mb-3' : 'w-10 h-10 mb-4'} mx-auto transition-colors`} style={{ color: c.tx3 }} />
               {loadingFile ? (
-                <p className="text-[15px] font-medium mb-1" style={{ color: '#00B0F0' }}>Processing file...</p>
+                <p className="text-[14px] font-medium mb-1" style={{ color: '#00B0F0' }}>Processing file...</p>
               ) : (
                 <>
-                  <p className="text-[15px] font-medium mb-1" style={{ color: c.tx2 }}>Drop your .xlsx, .csv, or .pdf file here</p>
+                  <p className={`${isMobile ? 'text-[13px]' : 'text-[15px]'} font-medium mb-1`} style={{ color: c.tx2 }}>Drop your .xlsx, .csv, or .pdf file here</p>
                   <p className="text-[13px]" style={{ color: c.tx3 }}>or click to browse</p>
                 </>
               )}
-              <div className="mt-4 flex items-center justify-center gap-1.5 text-[12px]" style={{ color: c.tx3 }}>
-                <FileSpreadsheet className="w-3.5 h-3.5" />
+              <div className={`mt-3 flex items-center justify-center gap-1.5 text-[11px] ${isMobile ? 'flex-wrap' : ''}`} style={{ color: c.tx3 }}>
+                <FileSpreadsheet className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>4 columns: Main Folder · Sub-Folder · Asset Tag · Payload</span>
               </div>
             </div>
@@ -767,26 +771,54 @@ export default function Home() {
           <div>
             {appState !== 'results' && (
               <>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="w-5 h-5 text-[#2A5A9E]" />
+                <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} mb-4`}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FileSpreadsheet className="w-5 h-5 text-[#2A5A9E] flex-shrink-0" />
                     <span className="text-[15px] font-semibold" data-testid="text-row-count">{rows.length} rows loaded</span>
-                    <div className="flex items-center gap-2 ml-2">
-                      {validation.valid > 0 && <span className="flex items-center gap-1 text-[12px] text-[#4CAF50]"><CheckCircle className="w-3.5 h-3.5" />{validation.valid} valid</span>}
-                      {validation.warnings > 0 && <span className="flex items-center gap-1 text-[12px] text-[#F5A623]"><AlertTriangle className="w-3.5 h-3.5" />{validation.warnings} warnings</span>}
-                      {validation.errors > 0 && <span className="flex items-center gap-1 text-[12px] text-[#E53935]"><XCircle className="w-3.5 h-3.5" />{validation.errors} errors</span>}
+                    <div className="flex items-center gap-2">
+                      {validation.valid > 0 && <span className="flex items-center gap-1 text-[12px] text-[#4CAF50]"><CheckCircle className="w-3.5 h-3.5" />{validation.valid}</span>}
+                      {validation.warnings > 0 && <span className="flex items-center gap-1 text-[12px] text-[#F5A623]"><AlertTriangle className="w-3.5 h-3.5" />{validation.warnings}</span>}
+                      {validation.errors > 0 && <span className="flex items-center gap-1 text-[12px] text-[#E53935]"><XCircle className="w-3.5 h-3.5" />{validation.errors}</span>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />Template</button>
-                    <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />Swap file</button>
-                    <div className="relative">
+                  <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
+                    <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />{!isMobile && 'Template'}</button>
+                    <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'Swap file'}</button>
+                    <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
-                      <input data-testid="input-search" type="text" placeholder="Search assets..." className="pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none w-48" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                      <input data-testid="input-search" type="text" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
                   </div>
                 </div>
 
+                {isMobile ? (
+                  <div className="space-y-2 mb-4">
+                    {filteredRows.map((row, i) => {
+                      const isDupe = row.warning?.startsWith('Duplicate');
+                      return (
+                        <div key={i} data-testid={`card-row-${row._idx}`} className="rounded-xl p-3" style={{ background: c.bg1, border: `1px solid ${isDupe ? '#F5A623' : c.bdr}`, borderLeftWidth: isDupe ? '3px' : '1px' }}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input type="checkbox" checked={selectedRows.has(row._idx)} onChange={() => handleSelectRow(row._idx)} data-testid={`checkbox-row-${row._idx}`} className="rounded flex-shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[13px] font-semibold truncate" data-testid={`text-asset-tag-${row._idx}`} style={{ fontFamily: "'JetBrains Mono', monospace" }}>{row.assetTag}</span>
+                                  {isDupe && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>Dup</span>}
+                                  {row.warning ? (row.valid ? <AlertTriangle className="w-3.5 h-3.5 text-[#F5A623] flex-shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-[#E53935] flex-shrink-0" />) : <CheckCircle className="w-3.5 h-3.5 text-[#4CAF50] flex-shrink-0" />}
+                                </div>
+                                <div className="text-[11px] truncate mt-0.5" style={{ color: c.tx3 }}>{[row.mainFolder, row.subFolder].filter(Boolean).join(' / ') || 'No folder'}</div>
+                              </div>
+                            </div>
+                            <button data-testid={`button-delete-row-${row._idx}`} className="p-1.5 rounded flex-shrink-0" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)}><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                          <button data-testid={`button-payload-${row._idx}`} className="text-[11px] px-2 py-1 rounded mt-2 truncate w-full text-left block" style={{ background: c.bg3, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setShowPayloadModal(row)}>
+                            {row.payload ? row.payload.substring(0, 50) + (row.payload.length > 50 ? '...' : '') : '(empty payload)'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
                 <div className="rounded-xl overflow-hidden mb-4" style={{ border: `1px solid ${c.bdr}` }}>
                   <div className="overflow-x-auto">
                     <table className="w-full text-[13px]">
@@ -873,18 +905,19 @@ export default function Home() {
                     </table>
                   </div>
                 </div>
+                )}
                 <button data-testid="button-add-row" className="flex items-center gap-1.5 text-[12px] mt-2 mb-1 transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#00B0F0')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={handleAddRow}><Plus className="w-3.5 h-3.5" />Add row</button>
               </>
             )}
 
             {appState === 'loaded' && (
-              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-                <div className="flex items-center gap-2">
-                  <Settings className="w-3.5 h-3.5" style={{ color: c.tx3 }} />
-                  <span className="text-[13px]" style={{ color: c.tx3 }}>{configSummary}</span>
+              <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} rounded-xl px-4 py-3`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Settings className="w-3.5 h-3.5 flex-shrink-0" style={{ color: c.tx3 }} />
+                  <span className={`${isMobile ? 'text-[12px]' : 'text-[13px]'}`} style={{ color: c.tx3 }}>{configSummary}</span>
                   <button data-testid="button-edit-config" className="text-[13px] text-[#00B0F0] ml-1" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => setShowConfig(true)}>Edit</button>
                 </div>
-                <button data-testid="button-generate" className="flex items-center gap-2 bg-[#2A5A9E] text-white px-5 py-2.5 rounded-lg font-semibold text-[14px] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed" style={{ boxShadow: '0 4px 14px rgba(42,90,158,0.25)' }} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleGenerate} disabled={validation.errors > 0 && selectedRows.size === 0}>
+                <button data-testid="button-generate" className={`flex items-center justify-center gap-2 bg-[#2A5A9E] text-white ${isMobile ? 'px-4 py-2.5 w-full' : 'px-5 py-2.5'} rounded-lg font-semibold text-[14px] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed`} style={{ boxShadow: '0 4px 14px rgba(42,90,158,0.25)' }} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleGenerate} disabled={validation.errors > 0 && selectedRows.size === 0}>
                   <QrCode className="w-4 h-4" />Generate {selectedRows.size > 0 ? `${selectedRows.size} selected` : `all ${validation.valid + validation.warnings}`}
                 </button>
               </div>
@@ -905,45 +938,45 @@ export default function Home() {
 
             {appState === 'results' && (
               <div>
-                <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
-                    <span className="text-[14px] font-medium" data-testid="text-generated-count">{generatedCount} QR codes generated</span>
-                    <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>
-                    <span className="text-[11px] px-1" style={{ color: c.tx3 }}>·</span>
+                <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} rounded-xl px-4 py-3 mb-4`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
+                    <span className={`${isMobile ? 'text-[13px]' : 'text-[14px]'} font-medium`} data-testid="text-generated-count">{generatedCount} QR codes</span>
+                    {!isMobile && <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>}
+                    {!isMobile && <span className="text-[11px] px-1" style={{ color: c.tx3 }}>·</span>}
                     {editingFilename ? (
                       <input
                         data-testid="input-export-filename"
                         autoFocus
-                        className="text-[12px] px-2 py-0.5 rounded outline-none w-44"
+                        className={`text-[12px] px-2 py-0.5 rounded outline-none ${isMobile ? 'w-full' : 'w-44'}`}
                         style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: "'JetBrains Mono', monospace" }}
                         defaultValue={exportFilename}
                         onKeyDown={(e) => { if (e.key === 'Enter') { setExportFilename((e.target as HTMLInputElement).value || 'Electracom_QR_Codes'); setEditingFilename(false); } if (e.key === 'Escape') setEditingFilename(false); }}
                         onBlur={(e) => { setExportFilename(e.target.value || 'Electracom_QR_Codes'); setEditingFilename(false); }}
                       />
                     ) : (
-                      <button data-testid="button-edit-filename" className="flex items-center gap-1 text-[12px] transition-colors" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setEditingFilename(true)} title="Edit export filename">
-                        <FileText className="w-3 h-3" />{exportFilename}<Pencil className="w-2.5 h-2.5 ml-0.5 opacity-50" />
+                      <button data-testid="button-edit-filename" className="flex items-center gap-1 text-[12px] transition-colors truncate" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setEditingFilename(true)} title="Edit export filename">
+                        <FileText className="w-3 h-3 flex-shrink-0" /><span className="truncate">{exportFilename}</span><Pencil className="w-2.5 h-2.5 ml-0.5 opacity-50 flex-shrink-0" />
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button data-testid="button-download-zip" className="flex items-center gap-2 bg-[#4CAF50] text-white px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = '#388E3C')} onMouseLeave={(e) => (e.currentTarget.style.background = '#4CAF50')} onClick={handleDownloadZip}><Download className="w-4 h-4" />ZIP</button>
-                    <button data-testid="button-download-pdf" className="flex items-center gap-2 bg-[#2A5A9E] text-white px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleDownloadPDF}><FileText className="w-4 h-4" />PDF</button>
-                    <button data-testid="button-print" className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />Print</button>
-                    <button data-testid="button-verify" className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />Verify</button>
-                    <button data-testid="button-folder-tree" className="flex items-center gap-2 px-3 py-2 rounded-lg text-[13px] transition-colors" style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />Folders</button>
-                    <button data-testid="button-regenerate" className="flex items-center gap-2 text-[13px] px-3 py-2 transition-colors" style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />Re-generate</button>
+                  <div className={`flex items-center gap-1.5 ${isMobile ? 'flex-wrap' : ''}`}>
+                    <button data-testid="button-download-zip" className={`flex items-center gap-1.5 bg-[#4CAF50] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#388E3C')} onMouseLeave={(e) => (e.currentTarget.style.background = '#4CAF50')} onClick={handleDownloadZip}><Download className="w-4 h-4" />{!isMobile && 'ZIP'}</button>
+                    <button data-testid="button-download-pdf" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleDownloadPDF}><FileText className="w-4 h-4" />{!isMobile && 'PDF'}</button>
+                    <button data-testid="button-print" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
+                    <button data-testid="button-verify" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />{!isMobile && 'Verify'}</button>
+                    <button data-testid="button-folder-tree" className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-[13px] transition-colors`} style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />{!isMobile && 'Folders'}</button>
+                    <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Re-generate'}</button>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mb-4 px-1">
+                {!isMobile && <div className="flex items-center gap-2 mb-4 px-1">
                   <Settings className="w-3.5 h-3.5" style={{ color: c.tx3 }} />
                   <span className="text-[12px]" style={{ color: c.tx3 }}>{configSummary}</span>
                   <button className="text-[12px] text-[#00B0F0]" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => { setShowConfig(true); }}>Edit & re-generate</button>
-                </div>
+                </div>}
 
-                <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.min(Math.max(config.labelW * 2.2, 120), 200)}px, 1fr))` }}>
+                <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? Math.min(Math.max(config.labelW * 1.8, 100), 140) : Math.min(Math.max(config.labelW * 2.2, 120), 200)}px, 1fr))` }}>
                   {pageItems.map((item, i) => (
                     <div key={i} data-testid={`card-qr-${i}`} className="rounded-xl overflow-hidden cursor-pointer transition-all relative group" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
                       <div className="bg-white p-3 flex items-center justify-center relative" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }}>
@@ -984,7 +1017,7 @@ export default function Home() {
       {showConfig && (
         <div className="fixed inset-0 z-[200]">
           <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowConfig(false)} />
-          <div className="absolute right-0 top-0 h-full w-[380px] overflow-y-auto" style={{ background: c.bg1, borderLeft: `1px solid ${c.bdr}` }}>
+          <div className={`absolute right-0 top-0 h-full ${isMobile ? 'w-full' : 'w-[380px]'} overflow-y-auto`} style={{ background: c.bg1, borderLeft: isMobile ? 'none' : `1px solid ${c.bdr}` }}>
             <div className="sticky top-0 px-5 py-4 flex items-center justify-between z-10" style={{ background: c.bg1, borderBottom: `1px solid ${c.bdr}` }}>
               <h2 className="text-[16px] font-bold">QR Configuration</h2>
               <button data-testid="button-close-config" className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => setShowConfig(false)}><X className="w-4 h-4" /></button>
@@ -1119,48 +1152,48 @@ export default function Home() {
         const item = galleryItems[scanIndex];
         return (
         <div className="fixed inset-0 z-[300] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)' }} onClick={(e) => { if (e.target === e.currentTarget) setShowScanViewer(false); }}>
-          <div className="bg-white rounded-2xl max-w-[460px] w-[92%] relative" style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+          <div className={`bg-white rounded-2xl ${isMobile ? 'max-w-full w-[95%]' : 'max-w-[460px] w-[92%]'} relative`} style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
             <button data-testid="button-close-scan" className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 transition-colors z-10" onMouseEnter={(e) => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.color = '#111'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999'; }} onClick={() => setShowScanViewer(false)}><X className="w-5 h-5" /></button>
 
-            <div className="px-8 pt-8 pb-4 flex items-center justify-center">
-              <div className="w-full aspect-square max-w-[280px] bg-[#f8f8f8] rounded-xl border-2 border-[#e8e8e8] flex items-center justify-center">
+            <div className={`${isMobile ? 'px-4 pt-4 pb-3' : 'px-8 pt-8 pb-4'} flex items-center justify-center`}>
+              <div className={`w-full aspect-square ${isMobile ? 'max-w-[220px]' : 'max-w-[280px]'} bg-[#f8f8f8] rounded-xl border-2 border-[#e8e8e8] flex items-center justify-center`}>
                 {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} title={item.payload || 'No payload'} className="w-full h-full object-contain p-2" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400">No QR</div>}
               </div>
             </div>
 
-            <div className="text-center px-6">
-              <div className="text-[20px] font-bold text-[#111]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{item.assetTag}</div>
+            <div className={`text-center ${isMobile ? 'px-4' : 'px-6'}`}>
+              <div className={`${isMobile ? 'text-[17px]' : 'text-[20px]'} font-bold text-[#111]`} style={{ fontFamily: "'DM Sans', sans-serif" }}>{item.assetTag}</div>
               <div className="text-[13px] text-[#777] mt-1">{[item.mainFolder, item.subFolder].filter(Boolean).join(' / ') || 'No folder'}</div>
             </div>
 
-            <div className="mx-6 my-3 h-px bg-[#e8e8e8]" />
+            <div className={`${isMobile ? 'mx-4' : 'mx-6'} my-3 h-px bg-[#e8e8e8]`} />
 
-            <div className="px-6">
+            <div className={`${isMobile ? 'px-4' : 'px-6'}`}>
               <div className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Encoded Payload</div>
-              <pre className="bg-[#f5f6f8] border border-[#e0e2e8] rounded-lg p-3 text-[12px] text-[#2a5a9e] whitespace-pre-wrap break-all leading-relaxed max-h-[130px] overflow-auto" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{prettyPayload(item.payload)}</pre>
+              <pre className={`bg-[#f5f6f8] border border-[#e0e2e8] rounded-lg ${isMobile ? 'p-2 text-[11px] max-h-[100px]' : 'p-3 text-[12px] max-h-[130px]'} text-[#2a5a9e] whitespace-pre-wrap break-all leading-relaxed overflow-auto`} style={{ fontFamily: "'JetBrains Mono', monospace" }}>{prettyPayload(item.payload)}</pre>
             </div>
 
-            <div className="flex items-center justify-center gap-2 mt-3 px-6 text-[12px] text-[#aaa]">
+            {!isMobile && <div className="flex items-center justify-center gap-2 mt-3 px-6 text-[12px] text-[#aaa]">
               <Smartphone className="w-4 h-4" />
               <span>Point your phone camera at the QR code to verify</span>
-            </div>
+            </div>}
 
-            <div className="flex items-center justify-center gap-3 px-6 pt-4 pb-2">
-              <button data-testid="button-scan-prev" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex === 0} onClick={() => setScanIndex(p => p - 1)}><ArrowLeft className="w-4 h-4" />Prev</button>
+            <div className={`flex items-center justify-center gap-3 ${isMobile ? 'px-4 pt-3 pb-1.5' : 'px-6 pt-4 pb-2'}`}>
+              <button data-testid="button-scan-prev" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30`} style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex === 0} onClick={() => setScanIndex(p => p - 1)}><ArrowLeft className="w-4 h-4" />{!isMobile && 'Prev'}</button>
               <span className="text-[13px] text-[#999] px-3" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{scanIndex + 1} / {galleryItems.length}</span>
-              <button data-testid="button-scan-next" className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex >= galleryItems.length - 1} onClick={() => setScanIndex(p => p + 1)}>Next<ArrowRight className="w-4 h-4" /></button>
+              <button data-testid="button-scan-next" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30`} style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex >= galleryItems.length - 1} onClick={() => setScanIndex(p => p + 1)}>{!isMobile && 'Next'}<ArrowRight className="w-4 h-4" /></button>
             </div>
 
-            <div className="flex items-center gap-2 px-6 pb-5">
-              <button data-testid="button-copy-scan-payload" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} onClick={() => handleCopy(item.payload)}>{copied ? <Check className="w-3.5 h-3.5 text-[#4CAF50]" /> : <Copy className="w-3.5 h-3.5" />}{copied ? 'Copied!' : 'Copy payload'}</button>
-              <button data-testid="button-save-image" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} onClick={() => handleSaveImage(item)}><Download className="w-3.5 h-3.5" />Save image</button>
+            <div className={`flex items-center gap-2 ${isMobile ? 'px-4 pb-4' : 'px-6 pb-5'}`}>
+              <button data-testid="button-copy-scan-payload" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} onClick={() => handleCopy(item.payload)}>{copied ? <Check className="w-3.5 h-3.5 text-[#4CAF50]" /> : <Copy className="w-3.5 h-3.5" />}{copied ? 'Copied!' : 'Copy'}</button>
+              <button data-testid="button-save-image" className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} onClick={() => handleSaveImage(item)}><Download className="w-3.5 h-3.5" />Save</button>
             </div>
           </div>
 
-          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          {!isMobile && <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
             <span className="flex items-center gap-1"><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>ESC</span> Close</span>
             <span className="flex items-center gap-1"><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>←</span><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>→</span> Navigate</span>
-          </div>
+          </div>}
         </div>
         );
       })()}
@@ -1168,15 +1201,15 @@ export default function Home() {
       {showPrintPreview && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center">
           <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }} />
-          <div className="relative rounded-2xl max-w-3xl w-[90%] max-h-[88vh] overflow-hidden flex flex-col shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-            <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
-              <div>
+          <div className={`relative rounded-2xl ${isMobile ? 'w-[95%]' : 'max-w-3xl w-[90%]'} max-h-[88vh] overflow-hidden flex flex-col shadow-2xl`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <div className={`${isMobile ? 'px-4 py-3' : 'px-6 py-4'} flex items-center justify-between flex-shrink-0`} style={{ borderBottom: `1px solid ${c.bdr}` }}>
+              <div className="min-w-0">
                 <h3 className="text-[16px] font-bold">Print Preview</h3>
-                <p className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>Click a label to inspect payload · Check/uncheck to select for printing</p>
+                {!isMobile && <p className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>Click a label to inspect payload · Check/uncheck to select for printing</p>}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px]" style={{ color: c.tx3 }}>{printSelected.size > 0 ? `${printSelected.size} selected` : 'All labels'}</span>
-                <button data-testid="button-print-execute" className="flex items-center gap-2 bg-[#2A5A9E] text-white px-4 py-2 rounded-lg font-semibold text-[13px]" onClick={handlePrint}><Printer className="w-4 h-4" />Print</button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!isMobile && <span className="text-[12px]" style={{ color: c.tx3 }}>{printSelected.size > 0 ? `${printSelected.size} selected` : 'All labels'}</span>}
+                <button data-testid="button-print-execute" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px]`} onClick={handlePrint}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
                 <button className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }}><X className="w-4 h-4" /></button>
               </div>
             </div>
