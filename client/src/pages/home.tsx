@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type } from 'lucide-react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon } from 'lucide-react';
 import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
-import { parseFile, parseFileRaw, applyMapping, autoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
+import { parseFile, parseFileRaw, applyMapping, autoMapColumns, partialAutoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
 import { exportToZip } from '@/lib/zip-exporter';
 import { exportToPDF } from '@/lib/pdf-exporter';
 import { printLabels } from '@/lib/print-labels';
 import { verifyQR, type VerifyResult } from '@/lib/qr-verifier';
-import { saveAs } from 'file-saver';
+
 import logoPath from '@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png';
 
 interface RowData extends ParsedRow {
@@ -299,13 +299,7 @@ export default function Home() {
         }
       }
       setRawFileData(raw);
-      const initialMapping: Record<string, number | undefined> = { mainFolder: undefined, subFolder: undefined, assetTag: undefined, payload: undefined };
-      if (autoMap) {
-        if (autoMap.mainFolder !== undefined) initialMapping.mainFolder = autoMap.mainFolder;
-        if (autoMap.subFolder !== undefined) initialMapping.subFolder = autoMap.subFolder;
-        if (autoMap.assetTag !== undefined) initialMapping.assetTag = autoMap.assetTag;
-        if (autoMap.payload !== undefined) initialMapping.payload = autoMap.payload;
-      }
+      const initialMapping = partialAutoMapColumns(raw.headers);
       setColumnMapping(initialMapping);
       setShowColumnMapper(true);
     } catch (err: any) {
@@ -502,13 +496,19 @@ export default function Home() {
   const handleSaveImage = (img: GeneratedQR) => {
     if (!img.dataURL) return;
     const byteString = atob(img.dataURL.split(',')[1]);
-    const mimeString = img.dataURL.split(',')[0].split(':')[1].split(';')[0];
     const ab = new ArrayBuffer(byteString.length);
     const ia = new Uint8Array(ab);
     for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
-    const blob = new Blob([ab], { type: mimeString });
+    const blob = new Blob([ab], { type: 'image/png' });
     const safeName = (img.assetTag || 'qr').replace(/[<>:"/\\|?*]/g, '_').trim();
-    saveAs(blob, `${safeName}.png`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeName}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleStartVerify = async () => {
@@ -635,12 +635,15 @@ export default function Home() {
 
       <header className="sticky top-0 z-50 backdrop-blur-xl px-6 py-3 flex items-center gap-4" style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
         <div className="flex items-center gap-3">
-          <img src={logoPath} alt="Electracom" className="h-10 object-contain" style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" />
+          <img src={logoPath} alt="Electracom" className="h-10 object-contain cursor-pointer" style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
           <div className="w-px h-7" style={{ background: c.bdr }} />
           <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {appState !== 'empty' && (
+            <button data-testid="button-home" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className="w-4 h-4" /></button>
+          )}
           <div className="relative">
             <button data-testid="button-preset-dropdown" className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
               <Zap className="w-3.5 h-3.5 text-[#F5A623]" />
@@ -944,7 +947,7 @@ export default function Home() {
                   {pageItems.map((item, i) => (
                     <div key={i} data-testid={`card-qr-${i}`} className="rounded-xl overflow-hidden cursor-pointer transition-all relative group" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
                       <div className="bg-white p-3 flex items-center justify-center relative" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }}>
-                        {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400 text-sm">Error</div>}
+                        {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} title={item.payload || 'No payload'} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400 text-sm">Error</div>}
                         {item.dataURL && (
                           <button
                             data-testid={`button-download-qr-${i}`}
@@ -1121,7 +1124,7 @@ export default function Home() {
 
             <div className="px-8 pt-8 pb-4 flex items-center justify-center">
               <div className="w-full aspect-square max-w-[280px] bg-[#f8f8f8] rounded-xl border-2 border-[#e8e8e8] flex items-center justify-center">
-                {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain p-2" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400">No QR</div>}
+                {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} title={item.payload || 'No payload'} className="w-full h-full object-contain p-2" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400">No QR</div>}
               </div>
             </div>
 
@@ -1185,7 +1188,7 @@ export default function Home() {
                       <input type="checkbox" checked={printSelected.has(i)} onChange={() => { setPrintSelected(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; }); }} className="rounded" />
                     </div>
                     <div className="bg-white p-2 flex items-center justify-center cursor-pointer" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }} onClick={() => setPrintPayloadView(printPayloadView === i ? null : i)}>
-                      {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Error</div>}
+                      {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} title={item.payload || 'No payload'} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Error</div>}
                     </div>
                     <div className="p-2 text-center">
                       <div className="text-[11px] font-semibold truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.assetTag}</div>

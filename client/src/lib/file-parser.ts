@@ -39,6 +39,21 @@ export function autoMapColumns(headers: string[]): Record<string, number> | null
   return null;
 }
 
+export function partialAutoMapColumns(headers: string[]): Record<string, number | undefined> {
+  const mapping: Record<string, number | undefined> = { mainFolder: undefined, subFolder: undefined, assetTag: undefined, payload: undefined };
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+
+  for (const field of EXPECTED_FIELDS) {
+    const aliases = HEADER_ALIASES[field];
+    const idx = lowerHeaders.findIndex(h => aliases.includes(h) || h === field.toLowerCase());
+    if (idx >= 0) {
+      mapping[field] = idx;
+    }
+  }
+
+  return mapping;
+}
+
 export function applyMapping(rawRows: string[][], mapping: Record<string, number>): ParsedRow[] {
   const rows: ParsedRow[] = [];
   for (const raw of rawRows) {

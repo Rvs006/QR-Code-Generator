@@ -62,4 +62,7 @@ client/src/
 - Electracom logo: `@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png`
 - MOCK_ROWS kept for demo data loading feature (includes intentional duplicate FCU-199001)
 - RECENT_FILES kept as cosmetic mock data
-- file-parser.ts exports: `parseFile()` (auto-mapping), `parseFileRaw()` (raw headers+rows), `autoMapColumns()`, `applyMapping()`, `RawFileData` type
+- file-parser.ts exports: `parseFile()` (auto-mapping), `parseFileRaw()` (raw headers+rows), `autoMapColumns()`, `partialAutoMapColumns()`, `applyMapping()`, `RawFileData` type
+- **Navigation**: Electracom logo is clickable (returns to landing page). Home button appears in header when not on landing page. Session auto-saves to localStorage, resume banner appears when returning home.
+- **QR hover tooltip**: QR code images show payload data on hover (via title attribute), not just asset tag name
+- **PNG download**: Uses anchor element download (not file-saver saveAs) to avoid Windows Security warnings
