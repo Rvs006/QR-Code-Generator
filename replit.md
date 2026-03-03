@@ -36,7 +36,7 @@ client/src/
 - Multi-format file import: .xlsx, .xls, .csv, .pdf (drag-and-drop + file picker)
 - **Column mapping modal**: Auto-detects column headers, shows mapping UI when headers don't match expected names. Uses `parseFileRaw()` + `autoMapColumns()` + `applyMapping()` from file-parser.ts
 - DPI-aware QR rendering: module size auto-calculated from label dimensions + DPI + payload
-- Three presets: Indoor Standard (50×30mm/300DPI), Outdoor Harsh (70×40mm/600DPI), Quick Draft (50×30mm/150DPI)
+- Three built-in presets: Indoor Standard (50×30mm/300DPI), Outdoor Harsh (70×40mm/600DPI), Quick Draft (50×30mm/150DPI). **Custom presets**: Save/load/delete in Settings panel "My Presets" section and header preset dropdown. Stored in `ec-custom-presets` localStorage.
 - **Editable rows**: Double-click any cell (mainFolder, subFolder, assetTag) to inline-edit. Pencil icon on hover. Add/delete rows supported. Re-validates on edit.
 - Duplicate asset tag detection with override modal (Keep All / Keep First Only / Cancel)
 - Batch generation with live progress tracking
@@ -45,14 +45,15 @@ client/src/
 - **Custom export filename**: Editable inline in results bar, date suffix auto-appended. Passed to `exportToZip()` and `exportToPDF()`.
 - Label-sized gallery cards with aspect ratio matching configured label dimensions
 - **Individual QR download**: Download button appears on hover over gallery cards (top-right corner), uses `stopPropagation` to avoid opening scan viewer
-- **Payload template builder**: Modal with template editor using `{assetTag}`, `{mainFolder}`, `{subFolder}` variables. Toggle for overwrite vs fill-empty-only. Template saved to localStorage.
+- **QR Data Template** (toolbar: "QR Data"): Modal with template editor using `{assetTag}`, `{mainFolder}`, `{subFolder}` variables. Toggle for overwrite vs fill-empty-only. Template saved to localStorage.
 - **Session persistence**: Rows and config auto-saved to localStorage (`ec-session-rows`, `ec-session-config`, `ec-session-state`). Resume banner on reopen. Does not persist generated images.
 - Professional printing optimized for standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
 - Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, D=pdf, P=print, C=config, ?=help)
 - Row selection, search/filter, column sorting
 - Duplicate rows highlighted with amber border and "Duplicate" badge in data table
-- Save as Preset to localStorage
+- Toolbar buttons: "QR Data" (was Template), "New file" (was Swap file), "Re-map" (column mapper, only when rawFileData available)
+- "Re-generate" label + RotateCcw icon on Generate button when returning from results view
 
 ## Important Notes
 - 100% client-side - no data leaves the browser (privacy requirement)

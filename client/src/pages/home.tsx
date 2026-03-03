@@ -124,6 +124,10 @@ export default function Home() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [config, setConfig] = useState<QRConfig & { name?: string; desc?: string }>({ ...PRESETS.indoor });
   const [activePreset, setActivePreset] = useState('indoor');
+  const [customPresets, setCustomPresets] = useState<Record<string, QRConfig>>(() => {
+    try { return JSON.parse(localStorage.getItem('ec-custom-presets') || '{}'); } catch { return {}; }
+  });
+  const [newPresetName, setNewPresetName] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0, asset: '' });
   const [searchQuery, setSearchQuery] = useState('');
   const [showPresetDropdown, setShowPresetDropdown] = useState(false);
@@ -548,9 +552,30 @@ export default function Home() {
   };
 
   const handleSelectPreset = (key: string) => {
-    setConfig({ ...PRESETS[key] });
+    if (PRESETS[key]) {
+      setConfig({ ...PRESETS[key] });
+    } else if (customPresets[key]) {
+      setConfig({ ...customPresets[key] });
+    }
     setActivePreset(key);
     setShowPresetDropdown(false);
+  };
+
+  const handleSaveCustomPreset = (name: string) => {
+    if (!name.trim()) return;
+    const updated = { ...customPresets, [name.trim()]: { ...config } };
+    setCustomPresets(updated);
+    localStorage.setItem('ec-custom-presets', JSON.stringify(updated));
+    setActivePreset(name.trim());
+    setNewPresetName('');
+  };
+
+  const handleDeleteCustomPreset = (name: string) => {
+    const updated = { ...customPresets };
+    delete updated[name];
+    setCustomPresets(updated);
+    localStorage.setItem('ec-custom-presets', JSON.stringify(updated));
+    if (activePreset === name) setActivePreset('custom');
   };
 
   const handleCopy = async (text: string) => {
@@ -727,7 +752,7 @@ export default function Home() {
           <div className="relative">
             <button data-testid="button-preset-dropdown" className={`flex items-center gap-1.5 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[13px] transition-colors`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
               <Zap className="w-3.5 h-3.5 text-[#F5A623]" />
-              {!isMobile && <span>{activePreset === 'custom' ? 'Custom' : PRESETS[activePreset]?.name}</span>}
+              {!isMobile && <span>{activePreset === 'custom' ? 'Custom' : (PRESETS[activePreset]?.name || activePreset)}</span>}
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {showPresetDropdown && (
@@ -741,6 +766,22 @@ export default function Home() {
                     <div className="text-[11px] mt-0.5 leading-snug" style={{ color: c.tx3 }}>{preset.desc}</div>
                   </button>
                 ))}
+                {Object.keys(customPresets).length > 0 && (
+                  <div style={{ borderTop: `1px solid ${c.bdr}` }}>
+                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>My Presets</div>
+                    {Object.keys(customPresets).map(name => (
+                      <div key={name} className="flex items-center w-full px-3 py-2 transition-colors group" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                        <button className="flex-1 text-left" onClick={() => handleSelectPreset(name)}>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[13px] ${activePreset === name ? 'font-semibold' : ''}`} style={{ color: activePreset === name ? '#00B0F0' : c.tx }}>{name}</span>
+                            {activePreset === name && <Check className="w-3.5 h-3.5 text-[#00B0F0]" />}
+                          </div>
+                        </button>
+                        <button data-testid={`button-delete-preset-${name}`} className="ml-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); handleDeleteCustomPreset(name); }}><Trash2 className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{ borderTop: `1px solid ${c.bdr}` }}>
                   <button className="w-full text-left px-3 py-2.5 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => { setShowPresetDropdown(false); setShowConfig(true); }}>
                     <Settings className="w-3.5 h-3.5 inline mr-2" />Customize...
@@ -877,9 +918,9 @@ export default function Home() {
                     </div>
                   </div>
                   <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
-                    <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />{!isMobile && 'Template'}</button>
+                    <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />{!isMobile && 'QR Data'}</button>
                     {rawFileData && <button data-testid="button-remap" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowColumnMapper(true)}><Columns className="w-3.5 h-3.5" />{!isMobile && 'Re-map'}</button>}
-                    <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'Swap file'}</button>
+                    <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'New file'}</button>
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
                       <input data-testid="input-search" type="text" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setDataPage(0); }} />
@@ -1243,7 +1284,27 @@ export default function Home() {
                 </div>
               </div>
 
-              <button className="w-full rounded-lg py-2.5 text-[13px] font-semibold transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => { const name = prompt('Preset name:'); if (name) { const saved = JSON.parse(localStorage.getItem('ec-custom-presets') || '{}'); saved[name] = { ...config }; localStorage.setItem('ec-custom-presets', JSON.stringify(saved)); alert(`Preset "${name}" saved.`); } }}>Save as Preset</button>
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>My Presets</div>
+                {Object.keys(customPresets).length > 0 ? (
+                  <div className="space-y-1.5 mb-3">
+                    {Object.keys(customPresets).map(name => (
+                      <div key={name} className="flex items-center gap-2 rounded-lg px-3 py-2 transition-all group" style={activePreset === name ? { background: 'rgba(42,90,158,0.15)', border: '1px solid #2A5A9E' } : { background: c.bg2, border: `1px solid ${c.bdr}` }}>
+                        <button data-testid={`button-load-preset-${name}`} className="flex-1 text-left" onClick={() => { setConfig({ ...customPresets[name] }); setActivePreset(name); }}>
+                          <span className="text-[12px] font-semibold" style={{ color: activePreset === name ? '#00B0F0' : c.tx2 }}>{name}</span>
+                        </button>
+                        <button data-testid={`button-delete-preset-settings-${name}`} className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: c.tx3 }} onClick={() => handleDeleteCustomPreset(name)}><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[12px] mb-3" style={{ color: c.tx3 }}>No saved presets yet. Save your current settings below.</p>
+                )}
+                <div className="flex gap-2">
+                  <input data-testid="input-preset-name" type="text" className="flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} placeholder="Preset name..." value={newPresetName} onChange={(e) => setNewPresetName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustomPreset(newPresetName); }} />
+                  <button data-testid="button-save-preset" className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-40" style={{ background: '#2A5A9E', color: 'white' }} disabled={!newPresetName.trim()} onClick={() => handleSaveCustomPreset(newPresetName)}>Save</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1658,7 +1719,7 @@ export default function Home() {
                 <Type className="w-5 h-5 text-[#00B0F0]" />
               </div>
               <div>
-                <h3 className="text-[16px] font-bold">Payload Template</h3>
+                <h3 className="text-[16px] font-bold">QR Data Template</h3>
                 <p className="text-[13px]" style={{ color: c.tx3 }}>Generate payloads from a template with variables</p>
               </div>
             </div>
