@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight } from 'lucide-react';
-import { renderQR, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
+import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
 import { parseFile, type ParsedRow } from '@/lib/file-parser';
 import { exportToZip } from '@/lib/zip-exporter';
 import { exportToPDF } from '@/lib/pdf-exporter';
@@ -15,9 +15,9 @@ interface RowData extends ParsedRow {
 }
 
 const PRESETS: Record<string, QRConfig & { name: string; desc: string }> = {
-  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 8, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true },
-  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 10, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true },
-  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 6, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false },
+  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true },
+  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 0, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true },
+  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false },
 };
 
 const EC_LABELS: Record<string, string> = { L: 'Low (7%)', M: 'Medium (15%)', Q: 'Quartile (25%)', H: 'High (30%)' };
@@ -99,6 +99,9 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [pendingRows, setPendingRows] = useState<RowData[]>([]);
+  const [duplicateGroups, setDuplicateGroups] = useState<Record<string, number>>({});
   const genCancelRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -132,6 +135,11 @@ export default function Home() {
     tx3: d ? '#5a6577' : '#9a9fae',
   };
 
+  const computedModSize = useMemo(() => {
+    const sampleLen = rows.length > 0 ? Math.max(...rows.filter(r => r.valid).map(r => r.payload.length), 100) : 100;
+    return estimateModuleSize(config, sampleLen);
+  }, [config, rows]);
+
   const validation = useMemo(() => {
     const valid = rows.filter(r => r.valid && !r.warning).length;
     const warnings = rows.filter(r => r.warning && r.valid).length;
@@ -161,17 +169,69 @@ export default function Home() {
     return f;
   }, [rows]);
 
-  const handleFileUpload = async (file: File) => {
-    setLoadingFile(true);
-    setFileError(null);
-    try {
-      const parsed = await parseFile(file);
-      setRows(validateRows(parsed));
+  const checkAndLoadRows = (validated: RowData[]) => {
+    const tagCount: Record<string, number> = {};
+    validated.forEach(r => { tagCount[r.assetTag] = (tagCount[r.assetTag] || 0) + 1; });
+    const dupes: Record<string, number> = {};
+    Object.entries(tagCount).forEach(([tag, count]) => { if (count > 1) dupes[tag] = count; });
+
+    if (Object.keys(dupes).length > 0) {
+      setPendingRows(validated);
+      setDuplicateGroups(dupes);
+      setShowDuplicateModal(true);
+    } else {
+      setRows(validated);
       setAppState('loaded');
       setSelectedRows(new Set());
       setGeneratedCount(0);
       setGeneratedImages([]);
       setGeneratedIndices([]);
+    }
+  };
+
+  const handleDuplicateKeepAll = () => {
+    setRows(pendingRows);
+    setAppState('loaded');
+    setSelectedRows(new Set());
+    setGeneratedCount(0);
+    setGeneratedImages([]);
+    setGeneratedIndices([]);
+    setShowDuplicateModal(false);
+    setPendingRows([]);
+    setDuplicateGroups({});
+  };
+
+  const handleDuplicateKeepFirst = () => {
+    const seen = new Set<string>();
+    const deduped = pendingRows.filter(r => {
+      if (seen.has(r.assetTag)) return false;
+      seen.add(r.assetTag);
+      return true;
+    });
+    setRows(validateRows(deduped));
+    setAppState('loaded');
+    setSelectedRows(new Set());
+    setGeneratedCount(0);
+    setGeneratedImages([]);
+    setGeneratedIndices([]);
+    setShowDuplicateModal(false);
+    setPendingRows([]);
+    setDuplicateGroups({});
+  };
+
+  const handleDuplicateCancel = () => {
+    setShowDuplicateModal(false);
+    setPendingRows([]);
+    setDuplicateGroups({});
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setLoadingFile(true);
+    setFileError(null);
+    try {
+      const parsed = await parseFile(file);
+      const validated = validateRows(parsed);
+      checkAndLoadRows(validated);
     } catch (err: any) {
       setFileError(err.message || 'Failed to parse file');
     } finally {
@@ -203,12 +263,8 @@ export default function Home() {
   };
 
   const handleLoadDemo = () => {
-    setRows(validateRows(MOCK_ROWS));
-    setAppState('loaded');
-    setSelectedRows(new Set());
-    setGeneratedCount(0);
-    setGeneratedImages([]);
-    setGeneratedIndices([]);
+    const validated = validateRows(MOCK_ROWS);
+    checkAndLoadRows(validated);
   };
 
   const handleSwapFile = () => {
@@ -245,6 +301,7 @@ export default function Home() {
         console.error(`Failed to generate QR for ${row.assetTag}:`, err);
         images.push({
           dataURL: '',
+          qrOnlyDataURL: '',
           width: 0,
           height: 0,
           assetTag: row.assetTag,
@@ -365,7 +422,7 @@ export default function Home() {
     return tree;
   }, [rows, generatedImages]);
 
-  const configSummary = `${EC_LABELS[config.ec]?.split(' ')[0]} EC · ${config.modSize}px · ${config.labelW}×${config.labelH}mm · ${config.dpi} DPI · ${config.format.toUpperCase()}`;
+  const configSummary = `${EC_LABELS[config.ec]?.split(' ')[0]} EC · Auto ${computedModSize}px · ${config.labelW}×${config.labelH}mm · ${config.dpi} DPI · ${config.format.toUpperCase()}`;
   const PER_PAGE = 20;
   const galleryItems = generatedImages.length > 0 ? generatedImages : [];
   const pageItems = galleryItems.slice(galleryPage * PER_PAGE, (galleryPage + 1) * PER_PAGE);
@@ -591,14 +648,21 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRows.map((row, i) => (
-                          <tr key={i} className="transition-colors" style={{ background: i % 2 === 0 ? 'transparent' : c.bg2, borderTop: `1px solid ${c.bdr}` }} onMouseEnter={(e) => (e.currentTarget.style.background = d ? 'rgba(42,90,158,0.08)' : 'rgba(42,90,158,0.04)')} onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : c.bg2)}>
+                        {filteredRows.map((row, i) => {
+                          const isDupe = row.warning?.startsWith('Duplicate');
+                          return (
+                          <tr key={i} className="transition-colors" style={{ background: isDupe ? (d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.08)') : (i % 2 === 0 ? 'transparent' : c.bg2), borderTop: `1px solid ${c.bdr}`, borderLeft: isDupe ? '3px solid #F5A623' : '3px solid transparent' }} onMouseEnter={(e) => (e.currentTarget.style.background = d ? 'rgba(42,90,158,0.08)' : 'rgba(42,90,158,0.04)')} onMouseLeave={(e) => (e.currentTarget.style.background = isDupe ? (d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.08)') : (i % 2 === 0 ? 'transparent' : c.bg2))}>
                             <td className="px-3 py-2 text-center">
                               <input type="checkbox" checked={selectedRows.has(row._idx)} onChange={() => handleSelectRow(row._idx)} data-testid={`checkbox-row-${row._idx}`} className="rounded" />
                             </td>
                             <td className="px-3 py-2" style={{ color: c.tx2 }}>{row.mainFolder || <span style={{ color: c.tx3 }}>—</span>}</td>
                             <td className="px-3 py-2" style={{ color: c.tx2 }}>{row.subFolder || <span style={{ color: c.tx3 }}>—</span>}</td>
-                            <td className="px-3 py-2 font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }} data-testid={`text-asset-tag-${row._idx}`}>{row.assetTag}</td>
+                            <td className="px-3 py-2 font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }} data-testid={`text-asset-tag-${row._idx}`}>
+                              <div className="flex items-center gap-2">
+                                {row.assetTag}
+                                {isDupe && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>Duplicate</span>}
+                              </div>
+                            </td>
                             <td className="px-3 py-2">
                               <button data-testid={`button-payload-${row._idx}`} className="text-[12px] px-2 py-1 rounded transition-colors truncate max-w-[200px] block" style={{ background: c.bg3, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setShowPayloadModal(row)}>
                                 {row.payload ? row.payload.substring(0, 40) + (row.payload.length > 40 ? '...' : '') : '(empty)'}
@@ -614,7 +678,8 @@ export default function Home() {
                               )}
                             </td>
                           </tr>
-                        ))}
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -672,10 +737,10 @@ export default function Home() {
                   <button className="text-[12px] text-[#00B0F0]" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => { setShowConfig(true); }}>Edit & re-generate</button>
                 </div>
 
-                <div className="grid grid-cols-5 gap-3 mb-4">
+                <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.min(Math.max(config.labelW * 2.2, 120), 200)}px, 1fr))` }}>
                   {pageItems.map((item, i) => (
                     <div key={i} data-testid={`card-qr-${i}`} className="rounded-xl overflow-hidden cursor-pointer transition-all" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
-                      <div className="bg-white p-3 flex items-center justify-center aspect-square">
+                      <div className="bg-white p-3 flex items-center justify-center" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }}>
                         {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400 text-sm">Error</div>}
                       </div>
                       <div className="p-2.5">
@@ -730,12 +795,14 @@ export default function Home() {
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    {[['modSize', 'Module Size (px)'], ['quiet', 'Quiet Zone']].map(([key, label]) => (
-                      <div key={key}>
-                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
-                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
-                      </div>
-                    ))}
+                    <div>
+                      <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Module Size</label>
+                      <div className="w-full rounded-lg px-3 py-2 text-[13px]" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx3 }}>Auto: {computedModSize}px</div>
+                    </div>
+                    <div>
+                      <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Quiet Zone</label>
+                      <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.quiet} onChange={(e) => handleUpdateConfig('quiet', parseInt(e.target.value) || 0)} />
+                    </div>
                   </div>
                   <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
                     <span className="text-[13px]" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
@@ -805,7 +872,7 @@ export default function Home() {
                     <span>·</span>
                     <span>{EC_LABELS[config.ec]}</span>
                     <span>·</span>
-                    <span>{config.modSize}px modules</span>
+                    <span>Auto {computedModSize}px modules</span>
                   </div>
                   <div className="text-[9px] mt-1.5 text-center" style={{ color: c.tx3 }}>{config.pixelPerfect ? '✓ Pixel-perfect' : '✗ Pixel-perfect off'} · Quiet zone: {config.quiet} modules</div>
                 </div>
@@ -897,14 +964,14 @@ export default function Home() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.min(Math.max(config.labelW * 2, 110), 180)}px, 1fr))` }}>
                 {generatedImages.map((item, i) => (
                   <div key={i} className="rounded-xl overflow-hidden relative" style={{ background: c.bg2, border: `1px solid ${printSelected.has(i) ? '#2A5A9E' : c.bdr}` }}>
                     <div className="absolute top-2 left-2 z-10">
                       <input type="checkbox" checked={printSelected.has(i)} onChange={() => { setPrintSelected(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; }); }} className="rounded" />
                     </div>
-                    <div className="bg-white p-2 flex items-center justify-center cursor-pointer" onClick={() => setPrintPayloadView(printPayloadView === i ? null : i)}>
-                      {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-24 h-24 object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="w-24 h-24 flex items-center justify-center text-gray-400 text-xs">Error</div>}
+                    <div className="bg-white p-2 flex items-center justify-center cursor-pointer" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }} onClick={() => setPrintPayloadView(printPayloadView === i ? null : i)}>
+                      {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Error</div>}
                     </div>
                     <div className="p-2 text-center">
                       <div className="text-[11px] font-semibold truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.assetTag}</div>
@@ -1029,6 +1096,38 @@ export default function Home() {
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[12px] font-bold text-white bg-[#4CAF50]">3</div>
                 <div><strong className="block" style={{ color: c.tx }}>Generate & export</strong>Generate ISO/IEC 18004 QR codes. Download as ZIP (folder structure) or PDF (print-ready A4 label sheets). Print directly or verify with jsQR decode.</div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDuplicateModal && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={handleDuplicateCancel} />
+          <div className="relative rounded-2xl max-w-md w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={handleDuplicateCancel}><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(245,166,35,0.15)' }}>
+                <AlertTriangle className="w-5 h-5 text-[#F5A623]" />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-bold">Duplicate Asset Tags Found</h3>
+                <p className="text-[13px]" style={{ color: c.tx3 }}>{Object.keys(duplicateGroups).length} tag{Object.keys(duplicateGroups).length > 1 ? 's' : ''} appear more than once</p>
+              </div>
+            </div>
+            <div className="rounded-xl p-3 mb-4 max-h-[200px] overflow-y-auto space-y-2" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
+              {Object.entries(duplicateGroups).map(([tag, count]) => (
+                <div key={tag} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)' }}>
+                  <span className="text-[13px] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{tag}</span>
+                  <span className="text-[12px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>×{count}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[12px] mb-4" style={{ color: c.tx3 }}>Duplicate tags will generate separate QR codes with potentially different payloads. Choose how to proceed:</p>
+            <div className="flex gap-2">
+              <button data-testid="button-dupe-keep-all" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623', border: '1px solid rgba(245,166,35,0.3)' }} onClick={handleDuplicateKeepAll}>Keep All</button>
+              <button data-testid="button-dupe-keep-first" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors bg-[#2A5A9E] text-white" onClick={handleDuplicateKeepFirst}>Keep First Only</button>
+              <button data-testid="button-dupe-cancel" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={handleDuplicateCancel}>Cancel</button>
             </div>
           </div>
         </div>

@@ -24,29 +24,35 @@ client/src/
 ├── pages/
 │   └── home.tsx               # Main app component with all UI/logic
 ├── lib/
-│   ├── qr-renderer.ts         # Real QR generation with canvas
+│   ├── qr-renderer.ts         # DPI-aware QR generation with auto module sizing
 │   ├── file-parser.ts         # Multi-format import (XLSX/CSV/PDF)
 │   ├── zip-exporter.ts        # ZIP export with folder structure
 │   ├── pdf-exporter.ts        # Professional PDF label sheet export
 │   ├── print-labels.ts        # Print-ready HTML for UK printers
-│   └── qr-verifier.ts         # QR decode verification with jsQR
+│   └── qr-verifier.ts         # QR decode verification with jsQR (uses qrOnlyDataURL)
 ```
 
 ## Features
 - Multi-format file import: .xlsx, .xls, .csv, .pdf (drag-and-drop + file picker)
-- Real QR code generation with configurable error correction (L/M/Q/H)
-- Three presets: Indoor Standard, Outdoor Harsh, Quick Draft
+- DPI-aware QR rendering: module size auto-calculated from label dimensions + DPI + payload
+- Three presets: Indoor Standard (50×30mm/300DPI), Outdoor Harsh (70×40mm/600DPI), Quick Draft (50×30mm/150DPI)
+- Duplicate asset tag detection with override modal (Keep All / Keep First Only / Cancel)
 - Batch generation with live progress tracking
-- QR verification (decodes each QR and compares to source payload)
+- QR verification using isolated QR-only image (qrOnlyDataURL) for accurate decode
 - Dual export: ZIP (folder structure) + PDF (A4 label sheets with crop marks)
+- Label-sized gallery cards with aspect ratio matching configured label dimensions
 - Professional printing optimized for UK standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
-- Gallery view, scan viewer with keyboard navigation
+- Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, D=pdf, P=print, C=config, ?=help)
 - Row selection, search/filter, column sorting
+- Duplicate rows highlighted with amber border and "Duplicate" badge in data table
+- Save as Preset to localStorage
 
 ## Important Notes
 - 100% client-side - no data leaves the browser (privacy requirement)
 - The inline style theming system is intentional, not Tailwind classes
+- Module size (modSize) is now auto-computed, not user-editable — shown as read-only "Auto: Xpx"
+- `calculateModuleSize()` and `estimateModuleSize()` exported from qr-renderer.ts for UI use
 - Electracom logo: `@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png`
-- MOCK_ROWS kept for demo data loading feature
+- MOCK_ROWS kept for demo data loading feature (includes intentional duplicate FCU-199001)
 - RECENT_FILES kept as cosmetic mock data
