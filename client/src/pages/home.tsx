@@ -9,6 +9,7 @@ import { printLabels } from '@/lib/print-labels';
 import { verifyQR, type VerifyResult } from '@/lib/qr-verifier';
 
 import logoPath from '@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png';
+import appIconPath from '@assets/electracom_qr_icon.png';
 
 interface RowData extends ParsedRow {
   valid: boolean;
@@ -737,12 +738,9 @@ export default function Home() {
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #00B0F0, #F5A623, #4CAF50, #9C27B0, #E53935)' }} />
 
       <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
-        <div className="flex items-center gap-2 min-w-0">
-          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-9' : 'h-11'} object-contain cursor-pointer flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
-          {!isMobile && <>
-            <div className="w-px h-7" style={{ background: c.bdr }} />
-            <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
-          </>}
+        <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home">
+          <img src={appIconPath} alt="Electracom QR" className={`${isMobile ? 'h-8' : 'h-10'} object-contain flex-shrink-0`} data-testid="img-logo" />
+          <span className={`font-bold ${isMobile ? 'text-[14px]' : 'text-[16px]'} tracking-wide`} style={{ color: c.tx }}>Electracom QR</span>
         </div>
 
         <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
