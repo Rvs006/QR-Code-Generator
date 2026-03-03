@@ -28,7 +28,7 @@ client/src/
 │   ├── file-parser.ts         # Multi-format import (XLSX/CSV/PDF) with column mapping
 │   ├── zip-exporter.ts        # ZIP export with folder structure + custom filename
 │   ├── pdf-exporter.ts        # Professional PDF label sheet export + custom filename
-│   ├── print-labels.ts        # Print-ready HTML for UK printers
+│   ├── print-labels.ts        # Print-ready HTML for printers
 │   └── qr-verifier.ts         # QR decode verification with jsQR (uses qrOnlyDataURL)
 ```
 
@@ -47,7 +47,7 @@ client/src/
 - **Individual QR download**: Download button appears on hover over gallery cards (top-right corner), uses `stopPropagation` to avoid opening scan viewer
 - **Payload template builder**: Modal with template editor using `{assetTag}`, `{mainFolder}`, `{subFolder}` variables. Toggle for overwrite vs fill-empty-only. Template saved to localStorage.
 - **Session persistence**: Rows and config auto-saved to localStorage (`ec-session-rows`, `ec-session-config`, `ec-session-state`). Resume banner on reopen. Does not persist generated images.
-- Professional printing optimized for UK standard printers (Brother, Zebra, Dymo)
+- Professional printing optimized for standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
 - Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, D=pdf, P=print, C=config, ?=help)
 - Row selection, search/filter, column sorting
@@ -61,7 +61,10 @@ client/src/
 - `calculateModuleSize()` and `estimateModuleSize()` exported from qr-renderer.ts for UI use
 - Electracom logo: `@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png`
 - MOCK_ROWS kept for demo data loading feature (includes intentional duplicate FCU-199001)
-- RECENT_FILES kept as cosmetic mock data
+- **Recent Files**: Real session history stored in `ec-recent-files` localStorage. Each entry saves rows + config to `ec-hist-{timestamp}` key. Up to 10 entries. Dismiss individual or clear all.
+- **Data table pagination**: 50 rows per page with Prev/Next navigation. Resets to page 0 on search or file load.
+- **Batch QR generation**: Processes in batches of 50 with UI yield between batches. Duplicate summary badge shown in results bar.
+- **Export progress**: Toast overlay shown during ZIP/PDF generation
 - file-parser.ts exports: `parseFile()` (auto-mapping), `parseFileRaw()` (raw headers+rows), `autoMapColumns()`, `partialAutoMapColumns()`, `applyMapping()`, `RawFileData` type
 - **Navigation**: Electracom logo is clickable (returns to landing page). Home button appears in header when not on landing page. Session auto-saves to localStorage, resume banner appears when returning home.
 - **QR hover tooltip**: QR code images show payload data on hover (via title attribute), not just asset tag name

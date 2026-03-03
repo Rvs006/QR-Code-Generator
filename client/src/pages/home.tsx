@@ -23,11 +23,54 @@ const PRESETS: Record<string, QRConfig & { name: string; desc: string }> = {
 
 const EC_LABELS: Record<string, string> = { L: 'Low (7%)', M: 'Medium (15%)', Q: 'Quartile (25%)', H: 'High (30%)' };
 
-const RECENT_FILES = [
-  { name: 'asset_labels_v3.xlsx', rows: 350, date: 'Today, 2:14 PM', folders: 8 },
-  { name: 'site_334OS_batch.xlsx', rows: 128, date: 'Yesterday', folders: 3 },
-  { name: 'fire_systems_audit.csv', rows: 45, date: 'Dec 12, 2024', folders: 2 },
-];
+interface RecentFileEntry {
+  name: string;
+  rows: number;
+  folders: number;
+  timestamp: number;
+  sessionKey: string;
+}
+
+function getRecentFiles(): RecentFileEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem('ec-recent-files') || '[]');
+  } catch { return []; }
+}
+
+function saveRecentFile(entry: Omit<RecentFileEntry, 'sessionKey' | 'timestamp'>, rowsData: any[], configData: any) {
+  const sessionKey = `ec-hist-${Date.now()}`;
+  const recent = getRecentFiles();
+  const newEntry: RecentFileEntry = { ...entry, timestamp: Date.now(), sessionKey };
+  const updated = [newEntry, ...recent.filter(r => r.name !== entry.name)].slice(0, 10);
+  try {
+    localStorage.setItem('ec-recent-files', JSON.stringify(updated));
+    localStorage.setItem(sessionKey, JSON.stringify({ rows: rowsData, config: configData }));
+  } catch {}
+}
+
+function removeRecentFile(sessionKey: string) {
+  const recent = getRecentFiles().filter(r => r.sessionKey !== sessionKey);
+  try {
+    localStorage.setItem('ec-recent-files', JSON.stringify(recent));
+    localStorage.removeItem(sessionKey);
+  } catch {}
+}
+
+function clearAllRecentFiles() {
+  const recent = getRecentFiles();
+  recent.forEach(r => { try { localStorage.removeItem(r.sessionKey); } catch {} });
+  localStorage.removeItem('ec-recent-files');
+}
+
+function formatRecentDate(ts: number): string {
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  if (diff < 172800000) return 'Yesterday';
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 const MOCK_ROWS: ParsedRow[] = [
   { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'FCU-199001', payload: '{"guid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","site":"334OS","asset":"FCU-199001","type":"FCU","floor":"L19"}' },
@@ -66,7 +109,7 @@ export default function Home() {
       if (saved) return saved === 'dark';
       if (window.matchMedia) return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
-    return true;
+    return false;
   });
   const [appState, setAppState] = useState<'empty' | 'loaded' | 'generating' | 'results'>('empty');
   const [rows, setRows] = useState<RowData[]>([]);
@@ -114,6 +157,12 @@ export default function Home() {
   const [templateOverwrite, setTemplateOverwrite] = useState(false);
   const [exportFilename, setExportFilename] = useState('Electracom_QR_Codes');
   const [editingFilename, setEditingFilename] = useState(false);
+  const [recentFiles, setRecentFiles] = useState<RecentFileEntry[]>(getRecentFiles());
+  const [recentToast, setRecentToast] = useState<string | null>(null);
+  const [dataPage, setDataPage] = useState(0);
+  const [lastLoadedFileName, setLastLoadedFileName] = useState('');
+  const [duplicateSummary, setDuplicateSummary] = useState<{ total: number; dupes: number } | null>(null);
+  const [exportProgress, setExportProgress] = useState<string | null>(null);
   const genCancelRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -230,7 +279,24 @@ export default function Home() {
     return f;
   }, [rows]);
 
-  const checkAndLoadRows = (validated: RowData[]) => {
+  const finalizeLoadRows = (validated: RowData[], fileName?: string) => {
+    setRows(validated);
+    setAppState('loaded');
+    setSelectedRows(new Set());
+    setGeneratedCount(0);
+    setGeneratedImages([]);
+    setGeneratedIndices([]);
+    setDataPage(0);
+    setDuplicateSummary(null);
+    if (fileName) {
+      const folderSet = new Set<string>();
+      validated.forEach(r => { const key = [r.mainFolder, r.subFolder].filter(Boolean).join('/'); if (key) folderSet.add(key); });
+      saveRecentFile({ name: fileName, rows: validated.length, folders: folderSet.size }, validated, config);
+      setRecentFiles(getRecentFiles());
+    }
+  };
+
+  const checkAndLoadRows = (validated: RowData[], fileName?: string) => {
     const tagCount: Record<string, number> = {};
     validated.forEach(r => { tagCount[r.assetTag] = (tagCount[r.assetTag] || 0) + 1; });
     const dupes: Record<string, number> = {};
@@ -241,22 +307,12 @@ export default function Home() {
       setDuplicateGroups(dupes);
       setShowDuplicateModal(true);
     } else {
-      setRows(validated);
-      setAppState('loaded');
-      setSelectedRows(new Set());
-      setGeneratedCount(0);
-      setGeneratedImages([]);
-      setGeneratedIndices([]);
+      finalizeLoadRows(validated, fileName || lastLoadedFileName);
     }
   };
 
   const handleDuplicateKeepAll = () => {
-    setRows(pendingRows);
-    setAppState('loaded');
-    setSelectedRows(new Set());
-    setGeneratedCount(0);
-    setGeneratedImages([]);
-    setGeneratedIndices([]);
+    finalizeLoadRows(pendingRows, lastLoadedFileName);
     setShowDuplicateModal(false);
     setPendingRows([]);
     setDuplicateGroups({});
@@ -269,12 +325,7 @@ export default function Home() {
       seen.add(r.assetTag);
       return true;
     });
-    setRows(validateRows(deduped));
-    setAppState('loaded');
-    setSelectedRows(new Set());
-    setGeneratedCount(0);
-    setGeneratedImages([]);
-    setGeneratedIndices([]);
+    finalizeLoadRows(validateRows(deduped), lastLoadedFileName);
     setShowDuplicateModal(false);
     setPendingRows([]);
     setDuplicateGroups({});
@@ -289,6 +340,7 @@ export default function Home() {
   const handleFileUpload = async (file: File) => {
     setLoadingFile(true);
     setFileError(null);
+    setLastLoadedFileName(file.name);
     try {
       const raw = await parseFileRaw(file);
       const autoMap = autoMapColumns(raw.headers);
@@ -296,7 +348,7 @@ export default function Home() {
         const parsed = applyMapping(raw.rawRows, autoMap);
         if (parsed.length > 0) {
           const validated = validateRows(parsed);
-          checkAndLoadRows(validated);
+          checkAndLoadRows(validated, file.name);
           return;
         }
       }
@@ -328,7 +380,7 @@ export default function Home() {
       return;
     }
     const validated = validateRows(parsed);
-    checkAndLoadRows(validated);
+    checkAndLoadRows(validated, lastLoadedFileName);
     setShowColumnMapper(false);
     setRawFileData(null);
   };
@@ -420,6 +472,7 @@ export default function Home() {
     setGeneratedImages([]);
 
     const images: GeneratedQR[] = [];
+    const BATCH_SIZE = 50;
 
     for (let i = 0; i < indices.length; i++) {
       if (genCancelRef.current) {
@@ -428,7 +481,6 @@ export default function Home() {
       }
 
       const row = rows[indices[i]];
-      setProgress({ current: i, total: count, asset: row.assetTag });
 
       try {
         const qr = await renderQR(row.payload, row.assetTag, row.mainFolder, row.subFolder, config);
@@ -447,8 +499,20 @@ export default function Home() {
         });
       }
 
-      await new Promise(r => setTimeout(r, 0));
+      if (i % BATCH_SIZE === 0 || i === indices.length - 1) {
+        setProgress({ current: i + 1, total: count, asset: row.assetTag });
+        await new Promise(r => setTimeout(r, 0));
+      }
+      if (genCancelRef.current) {
+        setAppState('loaded');
+        return;
+      }
     }
+
+    const tagCount: Record<string, number> = {};
+    images.forEach(img => { tagCount[img.assetTag] = (tagCount[img.assetTag] || 0) + 1; });
+    const dupeCount = Object.values(tagCount).filter(c => c > 1).reduce((a, c) => a + c, 0);
+    setDuplicateSummary(dupeCount > 0 ? { total: images.length, dupes: dupeCount } : null);
 
     setGeneratedCount(images.length);
     setGeneratedImages(images);
@@ -539,12 +603,22 @@ export default function Home() {
 
   const handleDownloadZip = async () => {
     if (generatedImages.length === 0) return;
-    await exportToZip(generatedImages, exportFilename);
+    setExportProgress('Preparing ZIP...');
+    try {
+      await exportToZip(generatedImages, exportFilename);
+    } finally {
+      setExportProgress(null);
+    }
   };
 
   const handleDownloadPDF = async () => {
     if (generatedImages.length === 0) return;
-    await exportToPDF(generatedImages, config, undefined, exportFilename);
+    setExportProgress('Generating PDF...');
+    try {
+      await exportToPDF(generatedImages, config, undefined, exportFilename);
+    } finally {
+      setExportProgress(null);
+    }
   };
 
   const handlePrint = () => {
@@ -680,15 +754,36 @@ export default function Home() {
             <button data-testid="button-recent-files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
             {showRecentFiles && (
               <div className="absolute right-0 top-full mt-1 w-72 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-                <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Recent Files</div>
-                {RECENT_FILES.map((f, i) => (
-                  <button key={i} className="w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => { setShowRecentFiles(false); handleLoadDemo(); }}>
-                    <FileSpreadsheet className="w-4 h-4 flex-shrink-0" style={{ color: '#2A5A9E' }} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-medium truncate" style={{ color: c.tx }}>{f.name}</div>
-                      <div className="text-[11px]" style={{ color: c.tx3 }}>{f.rows} rows · {f.folders} folders · {f.date}</div>
-                    </div>
-                  </button>
+                <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+                  <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.tx3 }}>Recent Files</span>
+                  {recentFiles.length > 0 && (
+                    <button data-testid="button-clear-recent" className="text-[11px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#E53935')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={() => { clearAllRecentFiles(); setRecentFiles([]); setRecentToast('All sessions cleared'); setTimeout(() => setRecentToast(null), 2500); }}>Clear all</button>
+                  )}
+                </div>
+                {recentFiles.length === 0 ? (
+                  <div className="px-3 py-6 text-center text-[13px]" style={{ color: c.tx3 }}>No recent files</div>
+                ) : recentFiles.map((f) => (
+                  <div key={f.sessionKey} className="flex items-center gap-3 px-3 py-2.5 transition-colors group" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                    <button className="flex items-center gap-3 min-w-0 flex-1 text-left" onClick={() => {
+                      try {
+                        const data = JSON.parse(localStorage.getItem(f.sessionKey) || '{}');
+                        if (data.rows?.length > 0) {
+                          if (data.config) setConfig(prev => ({ ...prev, ...data.config }));
+                          setLastLoadedFileName(f.name);
+                          const validated = validateRows(data.rows);
+                          checkAndLoadRows(validated, f.name);
+                        }
+                      } catch {}
+                      setShowRecentFiles(false);
+                    }}>
+                      <FileSpreadsheet className="w-4 h-4 flex-shrink-0" style={{ color: '#2A5A9E' }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium truncate" style={{ color: c.tx }}>{f.name}</div>
+                        <div className="text-[11px]" style={{ color: c.tx3 }}>{f.rows} rows · {f.folders} folders · {formatRecentDate(f.timestamp)}</div>
+                      </div>
+                    </button>
+                    <button data-testid={`button-dismiss-recent-${f.sessionKey}`} className="p-1 rounded opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity flex-shrink-0" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); removeRecentFile(f.sessionKey); setRecentFiles(getRecentFiles()); setRecentToast('Session removed from history'); setTimeout(() => setRecentToast(null), 2500); }}><X className="w-3 h-3" /></button>
+                  </div>
                 ))}
               </div>
             )}
@@ -786,14 +881,29 @@ export default function Home() {
                     <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'Swap file'}</button>
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
-                      <input data-testid="input-search" type="text" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                      <input data-testid="input-search" type="text" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setDataPage(0); }} />
                     </div>
                   </div>
                 </div>
 
+                {(() => {
+                  const ROWS_PER_PAGE = 50;
+                  const totalPages = Math.ceil(filteredRows.length / ROWS_PER_PAGE);
+                  const pageRows = filteredRows.slice(dataPage * ROWS_PER_PAGE, (dataPage + 1) * ROWS_PER_PAGE);
+                  const paginationBar = totalPages > 1 ? (
+                    <div className="flex items-center justify-between py-2 px-1 mb-2">
+                      <span className="text-[12px]" style={{ color: c.tx3 }}>Page {dataPage + 1} of {totalPages} ({filteredRows.length} rows)</span>
+                      <div className="flex items-center gap-1">
+                        <button data-testid="button-table-prev" className="px-2.5 py-1 rounded text-[12px] font-medium transition-colors disabled:opacity-30" style={{ color: c.tx2, border: `1px solid ${c.bdr}` }} disabled={dataPage === 0} onClick={() => setDataPage(p => p - 1)}>Prev</button>
+                        <button data-testid="button-table-next" className="px-2.5 py-1 rounded text-[12px] font-medium transition-colors disabled:opacity-30" style={{ color: c.tx2, border: `1px solid ${c.bdr}` }} disabled={dataPage >= totalPages - 1} onClick={() => setDataPage(p => p + 1)}>Next</button>
+                      </div>
+                    </div>
+                  ) : null;
+                  return <>
+                {paginationBar}
                 {isMobile ? (
                   <div className="space-y-2 mb-4">
-                    {filteredRows.map((row, i) => {
+                    {pageRows.map((row, i) => {
                       const isDupe = row.warning?.startsWith('Duplicate');
                       return (
                         <div key={i} data-testid={`card-row-${row._idx}`} className="rounded-xl p-3" style={{ background: c.bg1, border: `1px solid ${isDupe ? '#F5A623' : c.bdr}`, borderLeftWidth: isDupe ? '3px' : '1px' }}>
@@ -842,7 +952,7 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredRows.map((row, i) => {
+                        {pageRows.map((row, i) => {
                           const isDupe = row.warning?.startsWith('Duplicate');
                           const editableCell = (field: string, value: string, mono?: boolean) => {
                             if (editingCell && editingCell.rowIdx === row._idx && editingCell.field === field) {
@@ -906,6 +1016,9 @@ export default function Home() {
                   </div>
                 </div>
                 )}
+                {paginationBar}
+                </>;
+                })()}
                 <button data-testid="button-add-row" className="flex items-center gap-1.5 text-[12px] mt-2 mb-1 transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#00B0F0')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={handleAddRow}><Plus className="w-3.5 h-3.5" />Add row</button>
               </>
             )}
@@ -926,7 +1039,7 @@ export default function Home() {
             {appState === 'generating' && (
               <div className="rounded-xl px-4 py-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px]" style={{ color: c.tx2 }}>Processing {progress.current} of {progress.total} — <span className="font-medium" style={{ color: c.tx, fontFamily: "'JetBrains Mono', monospace" }}>{progress.asset}</span></span>
+                  <span className="text-[13px]" style={{ color: c.tx2 }}>Processing {progress.current.toLocaleString()} of {progress.total.toLocaleString()} — <span className="font-medium" style={{ color: c.tx, fontFamily: "'JetBrains Mono', monospace" }}>{progress.asset}</span></span>
                   <button data-testid="button-cancel-generate" className="text-[13px] text-[#E53935]" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={handleCancelGenerate}>Cancel</button>
                 </div>
                 <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: c.bg3 }}>
@@ -941,7 +1054,8 @@ export default function Home() {
                 <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex items-center justify-between'} rounded-xl px-4 py-3 mb-4`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
-                    <span className={`${isMobile ? 'text-[13px]' : 'text-[14px]'} font-medium`} data-testid="text-generated-count">{generatedCount} QR codes</span>
+                    <span className={`${isMobile ? 'text-[13px]' : 'text-[14px]'} font-medium`} data-testid="text-generated-count">{generatedCount.toLocaleString()} QR codes</span>
+                    {duplicateSummary && <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" data-testid="badge-duplicates" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>{duplicateSummary.dupes} duplicates</span>}
                     {!isMobile && <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>}
                     {!isMobile && <span className="text-[11px] px-1" style={{ color: c.tx3 }}>·</span>}
                     {editingFilename ? (
@@ -1409,9 +1523,9 @@ export default function Home() {
                 </div>
               </div>
               <div style={{ borderTop: `1px solid ${c.bdr}`, paddingTop: '12px' }}>
-                <strong className="block mb-2" style={{ color: c.tx }}>UK Printer Compatibility</strong>
+                <strong className="block mb-2" style={{ color: c.tx }}>Printer Compatibility</strong>
                 <div className="space-y-1">
-                  <div>Optimized for Brother, Zebra, Dymo, and standard A4 laser/inkjet printers commonly used in UK asset management.</div>
+                  <div>Optimized for Brother, Zebra, Dymo, and standard A4 laser/inkjet printers commonly used in asset management.</div>
                   <div>Label sizes configurable in mm with precise @page CSS for accurate sizing.</div>
                 </div>
               </div>
@@ -1427,31 +1541,32 @@ export default function Home() {
       {showColumnMapper && rawFileData && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center">
           <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowColumnMapper(false)} />
-          <div className="relative rounded-2xl max-w-lg w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={() => setShowColumnMapper(false)}><X className="w-4 h-4" /></button>
+          <div className={`relative rounded-2xl max-w-lg ${isMobile ? 'w-[95%] p-4 max-h-[90vh] overflow-y-auto' : 'w-[90%] p-6'} shadow-2xl`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <button className="absolute top-4 right-4 p-1 z-10" style={{ color: c.tx3 }} onClick={() => setShowColumnMapper(false)}><X className="w-4 h-4" /></button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(42,90,158,0.15)' }}>
-                <FileSpreadsheet className="w-5 h-5 text-[#2A5A9E]" />
+              <div className={`${isMobile ? 'w-8 h-8' : 'w-9 h-9'} rounded-xl flex items-center justify-center flex-shrink-0`} style={{ background: 'rgba(42,90,158,0.15)' }}>
+                <FileSpreadsheet className={`${isMobile ? 'w-4 h-4' : 'w-5 h-5'} text-[#2A5A9E]`} />
               </div>
               <div>
-                <h3 className="text-[16px] font-bold">Map Columns</h3>
-                <p className="text-[13px]" style={{ color: c.tx3 }}>Match your file columns to the required fields</p>
+                <h3 className={`${isMobile ? 'text-[15px]' : 'text-[16px]'} font-bold`}>Map Columns</h3>
+                <p className="text-[12px]" style={{ color: c.tx3 }}>Select which column in your file matches each field below</p>
               </div>
             </div>
             <div className="space-y-3 mb-4">
               {([
-                { key: 'assetTag', label: 'Asset Tag', required: true },
-                { key: 'mainFolder', label: 'Main Folder', required: false },
-                { key: 'subFolder', label: 'Sub-Folder', required: false },
-                { key: 'payload', label: 'Payload', required: false },
-              ] as const).map(({ key, label, required }) => (
-                <div key={key} className="flex items-center gap-3">
-                  <div className="w-28 text-[13px] font-medium flex items-center gap-1" style={{ color: c.tx2 }}>
+                { key: 'assetTag', label: 'Asset Tag', required: true, desc: 'Unique identifier on the QR label (e.g. FCU-199001)' },
+                { key: 'mainFolder', label: 'Main Folder', required: false, desc: 'Project or building name — organizes the ZIP export' },
+                { key: 'subFolder', label: 'Sub-Folder', required: false, desc: 'System or level — second level of folder structure' },
+                { key: 'payload', label: 'Payload', required: false, desc: 'Data embedded into the QR code (JSON or text)' },
+              ] as const).map(({ key, label, required, desc }) => (
+                <div key={key} className={isMobile ? 'space-y-1.5' : 'flex items-center gap-3'}>
+                  <div className={`${isMobile ? '' : 'w-28'} text-[13px] font-medium flex items-center gap-1`} style={{ color: c.tx2 }}>
                     {label}{required && <span className="text-[#E53935]">*</span>}
                   </div>
+                  <div className="text-[11px] leading-snug" style={{ color: c.tx3 }}>{desc}</div>
                   <select
                     data-testid={`select-map-${key}`}
-                    className="flex-1 rounded-lg px-3 py-2 text-[13px] outline-none"
+                    className={`${isMobile ? 'w-full' : 'flex-1'} rounded-lg px-3 py-2 text-[13px] outline-none`}
                     style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }}
                     value={columnMapping[key] !== undefined ? String(columnMapping[key]) : ''}
                     onChange={(e) => setColumnMapping(prev => ({ ...prev, [key]: e.target.value !== '' ? parseInt(e.target.value) : undefined }))}
@@ -1467,11 +1582,11 @@ export default function Home() {
             {rawFileData.rawRows.length > 0 && (
               <div className="mb-4">
                 <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: c.tx3 }}>Preview (first row)</div>
-                <div className="rounded-lg p-3 text-[12px] space-y-1" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>
+                <div className={`rounded-lg p-3 ${isMobile ? 'text-[11px]' : 'text-[12px]'} space-y-1 overflow-x-auto`} style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>
                   {rawFileData.headers.map((h, i) => (
-                    <div key={i} className="flex gap-2">
-                      <span style={{ color: c.tx3, minWidth: '80px' }}>{h || `Col ${i + 1}`}:</span>
-                      <span style={{ color: c.tx }}>{String(rawFileData.rawRows[0]?.[i] || '').substring(0, 60)}</span>
+                    <div key={i} className={`${isMobile ? 'flex flex-col' : 'flex gap-2'}`}>
+                      <span className={isMobile ? '' : ''} style={{ color: c.tx3, minWidth: isMobile ? undefined : '80px' }}>{h || `Col ${i + 1}`}:</span>
+                      <span className="break-all" style={{ color: c.tx }}>{String(rawFileData.rawRows[0]?.[i] || '').substring(0, isMobile ? 80 : 60)}</span>
                     </div>
                   ))}
                 </div>
@@ -1540,6 +1655,18 @@ export default function Home() {
               <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(false)}>Cancel</button>
             </div>
           </div>
+        </div>
+      )}
+      {recentToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-xl shadow-2xl text-[13px] font-medium animate-in fade-in slide-in-from-bottom-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}`, color: c.tx }}>
+          {recentToast}
+        </div>
+      )}
+
+      {exportProgress && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+          <div className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#2A5A9E', borderTopColor: 'transparent' }} />
+          <span className="text-[13px] font-medium" style={{ color: c.tx }}>{exportProgress}</span>
         </div>
       )}
     </div>
