@@ -451,8 +451,9 @@ export default function Home() {
   };
 
   const handleLoadDemo = () => {
+    setLastLoadedFileName('demo_assets.xlsx');
     const validated = validateRows(MOCK_ROWS);
-    checkAndLoadRows(validated);
+    checkAndLoadRows(validated, 'demo_assets.xlsx');
   };
 
   const handleSwapFile = () => {
@@ -711,16 +712,16 @@ export default function Home() {
 
       <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
         <div className="flex items-center gap-2 min-w-0">
-          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-8' : 'h-10'} object-contain cursor-pointer flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
+          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-9' : 'h-11'} object-contain cursor-pointer flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home" />
           {!isMobile && <>
             <div className="w-px h-7" style={{ background: c.bdr }} />
             <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
           </>}
         </div>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
           {appState !== 'empty' && (
-            <button data-testid="button-home" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className="w-4 h-4" /></button>
+            <button data-testid="button-home" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
           )}
           <div className="relative">
             <button data-testid="button-preset-dropdown" className={`flex items-center gap-1.5 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[13px] transition-colors`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
@@ -748,7 +749,7 @@ export default function Home() {
             )}
           </div>
 
-          <button data-testid="button-settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>
+          {!isMobile && <button data-testid="button-settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>}
 
           {!isMobile && <div className="relative">
             <button data-testid="button-recent-files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
@@ -789,10 +790,10 @@ export default function Home() {
             )}
           </div>}
 
-          <button data-testid="button-help" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className="w-4 h-4" /></button>
+          <button data-testid="button-help" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
 
-          <button data-testid="button-theme-toggle" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#F5A623'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={toggleTheme} title={d ? 'Light mode' : 'Dark mode'}>
-            {d ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          <button data-testid="button-theme-toggle" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#F5A623'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={toggleTheme} title={d ? 'Light mode' : 'Dark mode'}>
+            {d ? <Sun className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /> : <Moon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />}
           </button>
         </div>
       </header>
@@ -812,16 +813,14 @@ export default function Home() {
         )}
 
         {appState === 'empty' && (
-          <div className={`flex flex-col items-center ${isMobile ? 'pt-6' : 'pt-16'}`}>
-            <div className={`${isMobile ? 'w-12 h-12 rounded-xl mb-4' : 'w-16 h-16 rounded-2xl mb-6'} flex items-center justify-center`} style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: `1px solid ${c.bdr}` }}>
-              <QrCode className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} text-[#2A5A9E]`} />
-            </div>
-            <h1 className={`${isMobile ? 'text-xl' : 'text-2xl'} font-bold mb-2`} data-testid="text-heading">Generate QR Code Labels</h1>
-            <p className={`${isMobile ? 'text-[13px]' : 'text-[15px]'} mb-6 text-center max-w-md px-2`} style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
+          <div className={`flex flex-col items-center ${isMobile ? 'pt-4' : 'pt-16'}`}>
+            <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-14 mb-3' : 'h-20 mb-5'} object-contain`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
+            <h1 className={`${isMobile ? 'text-lg' : 'text-2xl'} font-bold mb-1`} data-testid="text-heading">QR Code Label Generator</h1>
+            <p className={`${isMobile ? 'text-[12px]' : 'text-[15px]'} mb-5 text-center max-w-md px-2`} style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
 
             <div
               data-testid="dropzone"
-              className={`w-full max-w-lg border-2 border-dashed rounded-2xl ${isMobile ? 'p-6' : 'p-12'} text-center cursor-pointer group transition-all`}
+              className={`w-full max-w-lg border-2 border-dashed rounded-2xl ${isMobile ? 'p-5' : 'p-10'} text-center cursor-pointer group transition-all`}
               style={{ borderColor: isDragging ? '#2A5A9E' : c.bdr, background: isDragging ? (d ? 'rgba(42,90,158,0.08)' : 'rgba(42,90,158,0.04)') : 'transparent' }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.background = d ? 'rgba(42,90,158,0.05)' : 'rgba(42,90,158,0.03)'; }}
               onMouseLeave={(e) => { if (!isDragging) { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.background = 'transparent'; } }}
@@ -830,7 +829,6 @@ export default function Home() {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
             >
-              <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-10 mb-3' : 'h-14 mb-5'} object-contain mx-auto`} style={{ filter: d ? 'brightness(1.8)' : 'none', opacity: 0.5 }} />
               <Upload className={`${isMobile ? 'w-8 h-8 mb-3' : 'w-10 h-10 mb-4'} mx-auto transition-colors`} style={{ color: c.tx3 }} />
               {loadingFile ? (
                 <p className="text-[14px] font-medium mb-1" style={{ color: '#00B0F0' }}>Processing file...</p>
