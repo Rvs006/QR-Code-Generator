@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon, Menu } from 'lucide-react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon, Menu, Columns } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
 import { parseFile, parseFileRaw, applyMapping, autoMapColumns, partialAutoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
@@ -347,6 +347,7 @@ export default function Home() {
       if (autoMap && autoMap.assetTag !== undefined) {
         const parsed = applyMapping(raw.rawRows, autoMap);
         if (parsed.length > 0) {
+          setRawFileData(null);
           const validated = validateRows(parsed);
           checkAndLoadRows(validated, file.name);
           return;
@@ -382,7 +383,6 @@ export default function Home() {
     const validated = validateRows(parsed);
     checkAndLoadRows(validated, lastLoadedFileName);
     setShowColumnMapper(false);
-    setRawFileData(null);
   };
 
   const handleEditCell = (rowIdx: number, field: string, value: string) => {
@@ -452,6 +452,7 @@ export default function Home() {
 
   const handleLoadDemo = () => {
     setLastLoadedFileName('demo_assets.xlsx');
+    setRawFileData(null);
     const validated = validateRows(MOCK_ROWS);
     checkAndLoadRows(validated, 'demo_assets.xlsx');
   };
@@ -771,6 +772,7 @@ export default function Home() {
                         if (data.rows?.length > 0) {
                           if (data.config) setConfig(prev => ({ ...prev, ...data.config }));
                           setLastLoadedFileName(f.name);
+                          setRawFileData(null);
                           const validated = validateRows(data.rows);
                           checkAndLoadRows(validated, f.name);
                         }
@@ -876,6 +878,7 @@ export default function Home() {
                   </div>
                   <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
                     <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />{!isMobile && 'Template'}</button>
+                    {rawFileData && <button data-testid="button-remap" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowColumnMapper(true)}><Columns className="w-3.5 h-3.5" />{!isMobile && 'Re-map'}</button>}
                     <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'Swap file'}</button>
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
@@ -1029,7 +1032,7 @@ export default function Home() {
                   <button data-testid="button-edit-config" className="text-[13px] text-[#00B0F0] ml-1" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => setShowConfig(true)}>Edit</button>
                 </div>
                 <button data-testid="button-generate" className={`flex items-center justify-center gap-2 bg-[#2A5A9E] text-white ${isMobile ? 'px-4 py-2.5 w-full' : 'px-5 py-2.5'} rounded-lg font-semibold text-[14px] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed`} style={{ boxShadow: '0 4px 14px rgba(42,90,158,0.25)' }} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleGenerate} disabled={validation.errors > 0 && selectedRows.size === 0}>
-                  <QrCode className="w-4 h-4" />Generate {selectedRows.size > 0 ? `${selectedRows.size} selected` : `all ${validation.valid + validation.warnings}`}
+                  {generatedCount > 0 ? <RotateCcw className="w-4 h-4" /> : <QrCode className="w-4 h-4" />}{generatedCount > 0 ? 'Re-generate' : 'Generate'} {selectedRows.size > 0 ? `${selectedRows.size} selected` : `all ${validation.valid + validation.warnings}`}
                 </button>
               </div>
             )}
