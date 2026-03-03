@@ -5,7 +5,8 @@ import type { QRConfig } from './qr-renderer';
 export async function exportToPDF(
   images: GeneratedQR[],
   config: QRConfig,
-  selectedIndices?: Set<number>
+  selectedIndices?: Set<number>,
+  customFilename?: string
 ): Promise<void> {
   const itemsToExport = selectedIndices && selectedIndices.size > 0
     ? images.filter((_, i) => selectedIndices.has(i))
@@ -99,5 +100,6 @@ export async function exportToPDF(
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
-  pdf.save(`Electracom_QR_Labels_${dateStr}.pdf`);
+  const baseName = customFilename ? customFilename.replace(/[<>:"/\\|?*]/g, '_').trim() : 'Electracom_QR_Labels';
+  pdf.save(`${baseName}_${dateStr}.pdf`);
 }

@@ -11,7 +11,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
   return bytes;
 }
 
-export async function exportToZip(images: GeneratedQR[]): Promise<void> {
+export async function exportToZip(images: GeneratedQR[], customFilename?: string): Promise<void> {
   const zip = new JSZip();
 
   for (const img of images) {
@@ -34,7 +34,8 @@ export async function exportToZip(images: GeneratedQR[]): Promise<void> {
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
-  const zipName = `Electracom_QR_Codes_${dateStr}.zip`;
+  const baseName = customFilename ? sanitize(customFilename) : 'Electracom_QR_Codes';
+  const zipName = `${baseName}_${dateStr}.zip`;
 
   const blob = await zip.generateAsync({
     type: 'blob',

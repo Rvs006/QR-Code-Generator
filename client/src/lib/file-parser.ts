@@ -7,21 +7,85 @@ export interface ParsedRow {
   payload: string;
 }
 
-export async function parseFile(file: File): Promise<ParsedRow[]> {
+export interface RawFileData {
+  headers: string[];
+  rawRows: string[][];
+}
+
+const EXPECTED_FIELDS = ['mainFolder', 'subFolder', 'assetTag', 'payload'];
+const HEADER_ALIASES: Record<string, string[]> = {
+  mainFolder: ['main folder', 'mainfolder', 'folder', 'site', 'building', 'location', 'main_folder', 'main-folder'],
+  subFolder: ['sub folder', 'subfolder', 'sub-folder', 'sub_folder', 'system', 'category', 'department', 'area', 'zone'],
+  assetTag: ['asset tag', 'assettag', 'asset_tag', 'asset-tag', 'asset id', 'assetid', 'asset_id', 'tag', 'id', 'name', 'label', 'code', 'reference', 'ref'],
+  payload: ['payload', 'data', 'qr data', 'qrdata', 'qr_data', 'qr-data', 'content', 'json', 'value', 'encoded', 'qr payload', 'qr content'],
+};
+
+export function autoMapColumns(headers: string[]): Record<string, number> | null {
+  const mapping: Record<string, number> = {};
+  const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+
+  for (const field of EXPECTED_FIELDS) {
+    const aliases = HEADER_ALIASES[field];
+    const idx = lowerHeaders.findIndex(h => aliases.includes(h) || h === field.toLowerCase());
+    if (idx >= 0) {
+      mapping[field] = idx;
+    }
+  }
+
+  if (mapping.assetTag !== undefined) {
+    return mapping;
+  }
+
+  return null;
+}
+
+export function applyMapping(rawRows: string[][], mapping: Record<string, number>): ParsedRow[] {
+  const rows: ParsedRow[] = [];
+  for (const raw of rawRows) {
+    const mainFolder = mapping.mainFolder !== undefined ? String(raw[mapping.mainFolder] || '').trim() : '';
+    const subFolder = mapping.subFolder !== undefined ? String(raw[mapping.subFolder] || '').trim() : '';
+    const assetTag = mapping.assetTag !== undefined ? String(raw[mapping.assetTag] || '').trim() : '';
+    const payload = mapping.payload !== undefined ? String(raw[mapping.payload] || '').trim() : '';
+
+    if (!assetTag && !payload) continue;
+    rows.push({ mainFolder, subFolder, assetTag, payload });
+  }
+  return rows;
+}
+
+export async function parseFileRaw(file: File): Promise<RawFileData> {
   const ext = file.name.split('.').pop()?.toLowerCase() || '';
 
   if (ext === 'xlsx' || ext === 'xls') {
-    return parseExcel(file);
+    return parseExcelRaw(file);
   } else if (ext === 'csv') {
-    return parseCSV(file);
+    return parseCSVRaw(file);
   } else if (ext === 'pdf') {
-    return parsePDF(file);
+    return parsePDFRaw(file);
   }
 
   throw new Error(`Unsupported file format: .${ext}. Please use .xlsx, .csv, or .pdf files.`);
 }
 
-async function parseExcel(file: File): Promise<ParsedRow[]> {
+export async function parseFile(file: File): Promise<ParsedRow[]> {
+  const { headers, rawRows } = await parseFileRaw(file);
+
+  const mapping = autoMapColumns(headers);
+  if (mapping) {
+    const rows = applyMapping(rawRows, mapping);
+    if (rows.length > 0) return rows;
+  }
+
+  if (rawRows.length > 0 && rawRows[0].length >= 3) {
+    const fallbackMapping: Record<string, number> = { mainFolder: 0, subFolder: 1, assetTag: 2, payload: 3 };
+    const rows = applyMapping(rawRows, fallbackMapping);
+    if (rows.length > 0) return rows;
+  }
+
+  throw new Error('Could not auto-map columns. Please map them manually.');
+}
+
+async function parseExcelRaw(file: File): Promise<RawFileData> {
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const firstSheetName = workbook.SheetNames[0];
@@ -32,50 +96,22 @@ async function parseExcel(file: File): Promise<ParsedRow[]> {
 
   if (jsonData.length < 2) throw new Error('File must have at least a header row and one data row');
 
-  const rows: ParsedRow[] = [];
-  for (let i = 1; i < jsonData.length; i++) {
-    const row = jsonData[i];
-    if (!row || row.length === 0) continue;
+  const headers = (jsonData[0] || []).map((h: any) => String(h || '').trim());
+  const rawRows = jsonData.slice(1).filter(row => row && row.length > 0).map(row => row.map((cell: any) => String(cell || '')));
 
-    const mainFolder = String(row[0] || '').trim();
-    const subFolder = String(row[1] || '').trim();
-    const assetTag = String(row[2] || '').trim();
-    const payload = String(row[3] || '').trim();
-
-    if (!assetTag && !payload) continue;
-
-    rows.push({ mainFolder, subFolder, assetTag, payload });
-  }
-
-  if (rows.length === 0) throw new Error('No valid data rows found. Expected 4 columns: Main Folder, Sub-Folder, Asset Tag, Payload');
-
-  return rows;
+  return { headers, rawRows };
 }
 
-async function parseCSV(file: File): Promise<ParsedRow[]> {
+async function parseCSVRaw(file: File): Promise<RawFileData> {
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter(l => l.trim());
 
   if (lines.length < 2) throw new Error('CSV must have at least a header row and one data row');
 
-  const rows: ParsedRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cols = parseCSVLine(lines[i]);
-    if (cols.length === 0) continue;
+  const headers = parseCSVLine(lines[0]).map(h => h.trim());
+  const rawRows = lines.slice(1).map(line => parseCSVLine(line)).filter(cols => cols.length > 0);
 
-    const mainFolder = (cols[0] || '').trim();
-    const subFolder = (cols[1] || '').trim();
-    const assetTag = (cols[2] || '').trim();
-    const payload = (cols[3] || '').trim();
-
-    if (!assetTag && !payload) continue;
-
-    rows.push({ mainFolder, subFolder, assetTag, payload });
-  }
-
-  if (rows.length === 0) throw new Error('No valid data rows found in CSV');
-
-  return rows;
+  return { headers, rawRows };
 }
 
 function parseCSVLine(line: string): string[] {
@@ -111,7 +147,7 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-async function parsePDF(file: File): Promise<ParsedRow[]> {
+async function parsePDFRaw(file: File): Promise<RawFileData> {
   const pdfjsLib = await import('pdfjs-dist');
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -129,26 +165,16 @@ async function parsePDF(file: File): Promise<ParsedRow[]> {
     allText += pageText + '\n';
   }
 
-  const rows: ParsedRow[] = [];
   const lines = allText.split(/\n/).filter(l => l.trim());
+  const headers = ['Column 1', 'Column 2', 'Column 3', 'Column 4'];
+  const rawRows: string[][] = [];
 
   for (const line of lines) {
     const parts = line.split(/\t|(?:\s{2,})|,/).map(s => s.trim()).filter(Boolean);
-    if (parts.length >= 3) {
-      const mainFolder = parts.length >= 4 ? parts[0] : '';
-      const subFolder = parts.length >= 4 ? parts[1] : '';
-      const assetTag = parts.length >= 4 ? parts[2] : parts[0];
-      const payload = parts.length >= 4 ? parts[3] : (parts.length >= 2 ? parts[parts.length - 1] : '');
-
-      if (assetTag && !assetTag.match(/^(main|sub|asset|tag|folder|payload|header)/i)) {
-        rows.push({ mainFolder, subFolder, assetTag, payload });
-      }
+    if (parts.length >= 2 && !parts[0].match(/^(main|sub|asset|tag|folder|payload|header)/i)) {
+      rawRows.push(parts);
     }
   }
 
-  if (rows.length === 0) {
-    throw new Error('Could not extract table data from PDF. Ensure the PDF contains a table with columns: Main Folder, Sub-Folder, Asset Tag, Payload');
-  }
-
-  return rows;
+  return { headers, rawRows };
 }

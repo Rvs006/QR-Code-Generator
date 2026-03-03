@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type } from 'lucide-react';
 import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
-import { parseFile, type ParsedRow } from '@/lib/file-parser';
+import { parseFile, parseFileRaw, applyMapping, autoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
 import { exportToZip } from '@/lib/zip-exporter';
 import { exportToPDF } from '@/lib/pdf-exporter';
 import { printLabels } from '@/lib/print-labels';
@@ -102,6 +102,16 @@ export default function Home() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [pendingRows, setPendingRows] = useState<RowData[]>([]);
   const [duplicateGroups, setDuplicateGroups] = useState<Record<string, number>>({});
+  const [showColumnMapper, setShowColumnMapper] = useState(false);
+  const [rawFileData, setRawFileData] = useState<RawFileData | null>(null);
+  const [columnMapping, setColumnMapping] = useState<Record<string, number | undefined>>({ mainFolder: undefined, subFolder: undefined, assetTag: undefined, payload: undefined });
+  const [editingCell, setEditingCell] = useState<{ rowIdx: number; field: string } | null>(null);
+  const [showSessionBanner, setShowSessionBanner] = useState(false);
+  const [showPayloadTemplate, setShowPayloadTemplate] = useState(false);
+  const [payloadTemplate, setPayloadTemplate] = useState(() => localStorage.getItem('ec-payload-template') || '{assetTag}');
+  const [templateOverwrite, setTemplateOverwrite] = useState(false);
+  const [exportFilename, setExportFilename] = useState('Electracom_QR_Codes');
+  const [editingFilename, setEditingFilename] = useState(false);
   const genCancelRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -120,6 +130,55 @@ export default function Home() {
       localStorage.setItem('ec-theme', next ? 'dark' : 'light');
       return next;
     });
+  };
+
+  useEffect(() => {
+    try {
+      const savedRows = localStorage.getItem('ec-session-rows');
+      const savedState = localStorage.getItem('ec-session-state');
+      if (savedRows && savedState && (savedState === 'loaded' || savedState === 'results')) {
+        const parsed = JSON.parse(savedRows);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setShowSessionBanner(true);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (rows.length > 0 && (appState === 'loaded' || appState === 'results')) {
+      try {
+        localStorage.setItem('ec-session-rows', JSON.stringify(rows));
+        localStorage.setItem('ec-session-config', JSON.stringify(config));
+        localStorage.setItem('ec-session-state', appState);
+      } catch {}
+    }
+  }, [rows, config, appState]);
+
+  const handleResumeSession = () => {
+    try {
+      const savedRows = JSON.parse(localStorage.getItem('ec-session-rows') || '[]');
+      const savedConfig = JSON.parse(localStorage.getItem('ec-session-config') || '{}');
+      if (savedRows.length > 0) {
+        setRows(savedRows);
+        if (savedConfig.ec) setConfig(prev => ({ ...prev, ...savedConfig }));
+        setAppState('loaded');
+      }
+    } catch {}
+    setShowSessionBanner(false);
+  };
+
+  const handleDismissSession = () => {
+    localStorage.removeItem('ec-session-rows');
+    localStorage.removeItem('ec-session-config');
+    localStorage.removeItem('ec-session-state');
+    setShowSessionBanner(false);
+  };
+
+  const handleClearSession = () => {
+    localStorage.removeItem('ec-session-rows');
+    localStorage.removeItem('ec-session-config');
+    localStorage.removeItem('ec-session-state');
   };
 
   const d = dark;
@@ -229,14 +288,95 @@ export default function Home() {
     setLoadingFile(true);
     setFileError(null);
     try {
-      const parsed = await parseFile(file);
-      const validated = validateRows(parsed);
-      checkAndLoadRows(validated);
+      const raw = await parseFileRaw(file);
+      const autoMap = autoMapColumns(raw.headers);
+      if (autoMap && autoMap.assetTag !== undefined) {
+        const parsed = applyMapping(raw.rawRows, autoMap);
+        if (parsed.length > 0) {
+          const validated = validateRows(parsed);
+          checkAndLoadRows(validated);
+          return;
+        }
+      }
+      setRawFileData(raw);
+      const initialMapping: Record<string, number | undefined> = { mainFolder: undefined, subFolder: undefined, assetTag: undefined, payload: undefined };
+      if (autoMap) {
+        if (autoMap.mainFolder !== undefined) initialMapping.mainFolder = autoMap.mainFolder;
+        if (autoMap.subFolder !== undefined) initialMapping.subFolder = autoMap.subFolder;
+        if (autoMap.assetTag !== undefined) initialMapping.assetTag = autoMap.assetTag;
+        if (autoMap.payload !== undefined) initialMapping.payload = autoMap.payload;
+      }
+      setColumnMapping(initialMapping);
+      setShowColumnMapper(true);
     } catch (err: any) {
       setFileError(err.message || 'Failed to parse file');
     } finally {
       setLoadingFile(false);
     }
+  };
+
+  const handleApplyMapping = () => {
+    if (!rawFileData) return;
+    const mapping: Record<string, number> = {};
+    if (columnMapping.assetTag === undefined) {
+      setFileError('Asset Tag column must be mapped');
+      return;
+    }
+    if (columnMapping.mainFolder !== undefined) mapping.mainFolder = columnMapping.mainFolder;
+    if (columnMapping.subFolder !== undefined) mapping.subFolder = columnMapping.subFolder;
+    mapping.assetTag = columnMapping.assetTag;
+    if (columnMapping.payload !== undefined) mapping.payload = columnMapping.payload;
+    const parsed = applyMapping(rawFileData.rawRows, mapping);
+    if (parsed.length === 0) {
+      setFileError('No valid rows found with the selected mapping');
+      return;
+    }
+    const validated = validateRows(parsed);
+    checkAndLoadRows(validated);
+    setShowColumnMapper(false);
+    setRawFileData(null);
+  };
+
+  const handleEditCell = (rowIdx: number, field: string, value: string) => {
+    setRows(prev => {
+      const updated = [...prev];
+      updated[rowIdx] = { ...updated[rowIdx], [field]: value };
+      return validateRows(updated);
+    });
+    setEditingCell(null);
+  };
+
+  const handleAddRow = () => {
+    const newRow: ParsedRow = { mainFolder: '', subFolder: '', assetTag: `NEW-${Date.now().toString(36).toUpperCase()}`, payload: '' };
+    setRows(prev => validateRows([...prev, newRow]));
+  };
+
+  const handleDeleteRow = (idx: number) => {
+    setRows(prev => {
+      const updated = prev.filter((_, i) => i !== idx);
+      return validateRows(updated);
+    });
+    setSelectedRows(prev => {
+      const n = new Set<number>();
+      prev.forEach(i => { if (i < idx) n.add(i); else if (i > idx) n.add(i - 1); });
+      return n;
+    });
+  };
+
+  const handleApplyTemplate = () => {
+    localStorage.setItem('ec-payload-template', payloadTemplate);
+    setRows(prev => {
+      const updated = prev.map(r => {
+        if (!templateOverwrite && r.payload.trim()) return r;
+        const generated = payloadTemplate
+          .replace(/\{assetTag\}/g, r.assetTag)
+          .replace(/\{mainFolder\}/g, r.mainFolder)
+          .replace(/\{subFolder\}/g, r.subFolder);
+        return { ...r, payload: generated };
+      });
+      return validateRows(updated);
+    });
+    setShowPayloadTemplate(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -367,7 +507,8 @@ export default function Home() {
     const ia = new Uint8Array(ab);
     for (let i = 0; i < byteString.length; i++) ia[i] = byteString.charCodeAt(i);
     const blob = new Blob([ab], { type: mimeString });
-    saveAs(blob, `${img.assetTag}.png`);
+    const safeName = (img.assetTag || 'qr').replace(/[<>:"/\\|?*]/g, '_').trim();
+    saveAs(blob, `${safeName}.png`);
   };
 
   const handleStartVerify = async () => {
@@ -396,12 +537,12 @@ export default function Home() {
 
   const handleDownloadZip = async () => {
     if (generatedImages.length === 0) return;
-    await exportToZip(generatedImages);
+    await exportToZip(generatedImages, exportFilename);
   };
 
   const handleDownloadPDF = async () => {
     if (generatedImages.length === 0) return;
-    await exportToPDF(generatedImages, config);
+    await exportToPDF(generatedImages, config, undefined, exportFilename);
   };
 
   const handlePrint = () => {
@@ -434,6 +575,9 @@ export default function Home() {
       const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 
       if (e.key === 'Escape') {
+        if (editingCell) { setEditingCell(null); return; }
+        if (showColumnMapper) { setShowColumnMapper(false); return; }
+        if (showPayloadTemplate) { setShowPayloadTemplate(false); return; }
         if (showScanViewer) { setShowScanViewer(false); return; }
         if (showPayloadModal) { setShowPayloadModal(null); return; }
         if (showPrintPreview) { setShowPrintPreview(false); setPrintPayloadView(null); return; }
@@ -457,7 +601,7 @@ export default function Home() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showScanViewer, showPayloadModal, showPrintPreview, showConfig, showHelpModal, showVerifyModal, showFolderTree, scanIndex, galleryItems.length, appState]);
+  }, [showScanViewer, showPayloadModal, showPrintPreview, showConfig, showHelpModal, showVerifyModal, showFolderTree, showColumnMapper, showPayloadTemplate, editingCell, scanIndex, galleryItems.length, appState]);
 
   const prettyPayload = (p: string) => { try { return JSON.stringify(JSON.parse(p), null, 2); } catch(e) { return p || '(empty)'; } };
 
@@ -552,6 +696,19 @@ export default function Home() {
       </header>
 
       <div className="max-w-[1080px] mx-auto px-6 py-7">
+        {showSessionBanner && appState === 'empty' && (
+          <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-5" style={{ background: d ? 'rgba(42,90,158,0.12)' : 'rgba(42,90,158,0.06)', border: `1px solid ${d ? 'rgba(42,90,158,0.3)' : 'rgba(42,90,158,0.15)'}` }} data-testid="banner-session">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-[#2A5A9E]" />
+              <span className="text-[13px]" style={{ color: c.tx2 }}>You have a previous session. Resume where you left off?</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button data-testid="button-resume-session" className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-[#2A5A9E] text-white" onClick={handleResumeSession}>Resume</button>
+              <button data-testid="button-dismiss-session" className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleDismissSession}>Dismiss</button>
+            </div>
+          </div>
+        )}
+
         {appState === 'empty' && (
           <div className="flex flex-col items-center pt-16">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: `1px solid ${c.bdr}` }}>
@@ -618,6 +775,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />Template</button>
                     <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />Swap file</button>
                     <div className="relative">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
@@ -645,21 +803,46 @@ export default function Home() {
                           </th>
                           <th className="px-3 py-2.5 text-left font-semibold" style={{ color: c.tx2 }}>Payload</th>
                           <th className="px-3 py-2.5 text-left font-semibold w-12" style={{ color: c.tx2 }}>Status</th>
+                          <th className="px-3 py-2.5 text-center font-semibold w-10" style={{ color: c.tx2 }}></th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredRows.map((row, i) => {
                           const isDupe = row.warning?.startsWith('Duplicate');
+                          const editableCell = (field: string, value: string, mono?: boolean) => {
+                            if (editingCell && editingCell.rowIdx === row._idx && editingCell.field === field) {
+                              return (
+                                <input
+                                  autoFocus
+                                  data-testid={`input-edit-${field}-${row._idx}`}
+                                  className="w-full rounded px-1.5 py-0.5 text-[13px] outline-none"
+                                  style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit' }}
+                                  defaultValue={value}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleEditCell(row._idx, field, (e.target as HTMLInputElement).value);
+                                    if (e.key === 'Escape') setEditingCell(null);
+                                  }}
+                                  onBlur={(e) => handleEditCell(row._idx, field, e.target.value)}
+                                />
+                              );
+                            }
+                            return (
+                              <div className="group/cell flex items-center gap-1 cursor-text" onDoubleClick={() => setEditingCell({ rowIdx: row._idx, field })}>
+                                <span style={{ color: value ? c.tx2 : c.tx3, fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit' }}>{value || '—'}</span>
+                                <Pencil className="w-3 h-3 opacity-0 group-hover/cell:opacity-40 flex-shrink-0" style={{ color: c.tx3 }} />
+                              </div>
+                            );
+                          };
                           return (
                           <tr key={i} className="transition-colors" style={{ background: isDupe ? (d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.08)') : (i % 2 === 0 ? 'transparent' : c.bg2), borderTop: `1px solid ${c.bdr}`, borderLeft: isDupe ? '3px solid #F5A623' : '3px solid transparent' }} onMouseEnter={(e) => (e.currentTarget.style.background = d ? 'rgba(42,90,158,0.08)' : 'rgba(42,90,158,0.04)')} onMouseLeave={(e) => (e.currentTarget.style.background = isDupe ? (d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.08)') : (i % 2 === 0 ? 'transparent' : c.bg2))}>
                             <td className="px-3 py-2 text-center">
                               <input type="checkbox" checked={selectedRows.has(row._idx)} onChange={() => handleSelectRow(row._idx)} data-testid={`checkbox-row-${row._idx}`} className="rounded" />
                             </td>
-                            <td className="px-3 py-2" style={{ color: c.tx2 }}>{row.mainFolder || <span style={{ color: c.tx3 }}>—</span>}</td>
-                            <td className="px-3 py-2" style={{ color: c.tx2 }}>{row.subFolder || <span style={{ color: c.tx3 }}>—</span>}</td>
-                            <td className="px-3 py-2 font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }} data-testid={`text-asset-tag-${row._idx}`}>
+                            <td className="px-3 py-2">{editableCell('mainFolder', row.mainFolder)}</td>
+                            <td className="px-3 py-2">{editableCell('subFolder', row.subFolder)}</td>
+                            <td className="px-3 py-2 font-semibold" data-testid={`text-asset-tag-${row._idx}`}>
                               <div className="flex items-center gap-2">
-                                {row.assetTag}
+                                {editableCell('assetTag', row.assetTag, true)}
                                 {isDupe && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>Duplicate</span>}
                               </div>
                             </td>
@@ -677,6 +860,9 @@ export default function Home() {
                                 <CheckCircle className="w-4 h-4 text-[#4CAF50]" />
                               )}
                             </td>
+                            <td className="px-3 py-2 text-center">
+                              <button data-testid={`button-delete-row-${row._idx}`} className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)} title="Delete row"><Trash2 className="w-3.5 h-3.5" /></button>
+                            </td>
                           </tr>
                           );
                         })}
@@ -684,6 +870,7 @@ export default function Home() {
                     </table>
                   </div>
                 </div>
+                <button data-testid="button-add-row" className="flex items-center gap-1.5 text-[12px] mt-2 mb-1 transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#00B0F0')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={handleAddRow}><Plus className="w-3.5 h-3.5" />Add row</button>
               </>
             )}
 
@@ -720,6 +907,22 @@ export default function Home() {
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
                     <span className="text-[14px] font-medium" data-testid="text-generated-count">{generatedCount} QR codes generated</span>
                     <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>
+                    <span className="text-[11px] px-1" style={{ color: c.tx3 }}>·</span>
+                    {editingFilename ? (
+                      <input
+                        data-testid="input-export-filename"
+                        autoFocus
+                        className="text-[12px] px-2 py-0.5 rounded outline-none w-44"
+                        style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: "'JetBrains Mono', monospace" }}
+                        defaultValue={exportFilename}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { setExportFilename((e.target as HTMLInputElement).value || 'Electracom_QR_Codes'); setEditingFilename(false); } if (e.key === 'Escape') setEditingFilename(false); }}
+                        onBlur={(e) => { setExportFilename(e.target.value || 'Electracom_QR_Codes'); setEditingFilename(false); }}
+                      />
+                    ) : (
+                      <button data-testid="button-edit-filename" className="flex items-center gap-1 text-[12px] transition-colors" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setEditingFilename(true)} title="Edit export filename">
+                        <FileText className="w-3 h-3" />{exportFilename}<Pencil className="w-2.5 h-2.5 ml-0.5 opacity-50" />
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <button data-testid="button-download-zip" className="flex items-center gap-2 bg-[#4CAF50] text-white px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = '#388E3C')} onMouseLeave={(e) => (e.currentTarget.style.background = '#4CAF50')} onClick={handleDownloadZip}><Download className="w-4 h-4" />ZIP</button>
@@ -739,9 +942,20 @@ export default function Home() {
 
                 <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${Math.min(Math.max(config.labelW * 2.2, 120), 200)}px, 1fr))` }}>
                   {pageItems.map((item, i) => (
-                    <div key={i} data-testid={`card-qr-${i}`} className="rounded-xl overflow-hidden cursor-pointer transition-all" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
-                      <div className="bg-white p-3 flex items-center justify-center" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }}>
+                    <div key={i} data-testid={`card-qr-${i}`} className="rounded-xl overflow-hidden cursor-pointer transition-all relative group" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
+                      <div className="bg-white p-3 flex items-center justify-center relative" style={{ aspectRatio: `${config.labelW} / ${config.labelH}` }}>
                         {item.dataURL ? <img src={item.dataURL} alt={item.assetTag} className="w-full h-full object-contain" style={{ imageRendering: 'pixelated' }} /> : <div className="text-gray-400 text-sm">Error</div>}
+                        {item.dataURL && (
+                          <button
+                            data-testid={`button-download-qr-${i}`}
+                            className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{ background: 'rgba(42,90,158,0.9)', color: 'white' }}
+                            onClick={(e) => { e.stopPropagation(); handleSaveImage(item); }}
+                            title="Download this QR"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <div className="p-2.5">
                         <div className="text-[12px] font-semibold text-center truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.assetTag}</div>
@@ -1169,6 +1383,125 @@ export default function Home() {
                 <strong className="block mb-1" style={{ color: c.tx }}>Privacy</strong>
                 <div>All data stays in your browser. No files are uploaded to any server.</div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showColumnMapper && rawFileData && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowColumnMapper(false)} />
+          <div className="relative rounded-2xl max-w-lg w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={() => setShowColumnMapper(false)}><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(42,90,158,0.15)' }}>
+                <FileSpreadsheet className="w-5 h-5 text-[#2A5A9E]" />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-bold">Map Columns</h3>
+                <p className="text-[13px]" style={{ color: c.tx3 }}>Match your file columns to the required fields</p>
+              </div>
+            </div>
+            <div className="space-y-3 mb-4">
+              {([
+                { key: 'assetTag', label: 'Asset Tag', required: true },
+                { key: 'mainFolder', label: 'Main Folder', required: false },
+                { key: 'subFolder', label: 'Sub-Folder', required: false },
+                { key: 'payload', label: 'Payload', required: false },
+              ] as const).map(({ key, label, required }) => (
+                <div key={key} className="flex items-center gap-3">
+                  <div className="w-28 text-[13px] font-medium flex items-center gap-1" style={{ color: c.tx2 }}>
+                    {label}{required && <span className="text-[#E53935]">*</span>}
+                  </div>
+                  <select
+                    data-testid={`select-map-${key}`}
+                    className="flex-1 rounded-lg px-3 py-2 text-[13px] outline-none"
+                    style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }}
+                    value={columnMapping[key] !== undefined ? String(columnMapping[key]) : ''}
+                    onChange={(e) => setColumnMapping(prev => ({ ...prev, [key]: e.target.value !== '' ? parseInt(e.target.value) : undefined }))}
+                  >
+                    <option value="">— Skip —</option>
+                    {rawFileData.headers.map((h, i) => (
+                      <option key={i} value={String(i)}>{h || `Column ${i + 1}`}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+            {rawFileData.rawRows.length > 0 && (
+              <div className="mb-4">
+                <div className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: c.tx3 }}>Preview (first row)</div>
+                <div className="rounded-lg p-3 text-[12px] space-y-1" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {rawFileData.headers.map((h, i) => (
+                    <div key={i} className="flex gap-2">
+                      <span style={{ color: c.tx3, minWidth: '80px' }}>{h || `Col ${i + 1}`}:</span>
+                      <span style={{ color: c.tx }}>{String(rawFileData.rawRows[0]?.[i] || '').substring(0, 60)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {fileError && (
+              <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-lg mb-3" style={{ background: 'rgba(229,57,53,0.1)', color: '#E53935' }}>
+                <AlertCircle className="w-3.5 h-3.5" />{fileError}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button data-testid="button-apply-mapping" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold bg-[#2A5A9E] text-white" onClick={handleApplyMapping}>Apply Mapping</button>
+              <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowColumnMapper(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPayloadTemplate && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowPayloadTemplate(false)} />
+          <div className="relative rounded-2xl max-w-lg w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={() => setShowPayloadTemplate(false)}><X className="w-4 h-4" /></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,176,240,0.15)' }}>
+                <Type className="w-5 h-5 text-[#00B0F0]" />
+              </div>
+              <div>
+                <h3 className="text-[16px] font-bold">Payload Template</h3>
+                <p className="text-[13px]" style={{ color: c.tx3 }}>Generate payloads from a template with variables</p>
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="text-[12px] font-semibold block mb-1.5" style={{ color: c.tx2 }}>Template</label>
+              <textarea
+                data-testid="textarea-payload-template"
+                className="w-full rounded-lg px-3 py-2.5 text-[13px] outline-none resize-none"
+                style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace", minHeight: '80px' }}
+                value={payloadTemplate}
+                onChange={(e) => setPayloadTemplate(e.target.value)}
+                placeholder='{"guid":"{assetTag}","site":"{mainFolder}"}'
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <span className="text-[11px] font-medium" style={{ color: c.tx3 }}>Variables:</span>
+              {['{assetTag}', '{mainFolder}', '{subFolder}'].map(v => (
+                <button key={v} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,176,240,0.1)', color: '#00B0F0', border: '1px solid rgba(0,176,240,0.2)' }} onClick={() => setPayloadTemplate(prev => prev + v)}>{v}</button>
+              ))}
+            </div>
+            {rows.length > 0 && (
+              <div className="mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: c.tx3 }}>Preview (row 1)</div>
+                <pre className="rounded-lg p-3 text-[12px] text-[#00B0F0] whitespace-pre-wrap break-all" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>
+                  {payloadTemplate.replace(/\{assetTag\}/g, rows[0]?.assetTag || '').replace(/\{mainFolder\}/g, rows[0]?.mainFolder || '').replace(/\{subFolder\}/g, rows[0]?.subFolder || '')}
+                </pre>
+              </div>
+            )}
+            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-4" style={{ background: c.bg2 }}>
+              <span className="text-[13px]" style={{ color: c.tx2 }}>Overwrite existing payloads</span>
+              <button data-testid="button-template-overwrite" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: templateOverwrite ? '#F5A623' : c.bg3, border: templateOverwrite ? 'none' : `1px solid ${c.bdr}` }} onClick={() => setTemplateOverwrite(p => !p)}>
+                <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: templateOverwrite ? '22px' : '3px' }} />
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <button data-testid="button-apply-template" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold bg-[#00B0F0] text-white" onClick={handleApplyTemplate}>Apply to {templateOverwrite ? 'all' : 'empty'} rows</button>
+              <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(false)}>Cancel</button>
             </div>
           </div>
         </div>

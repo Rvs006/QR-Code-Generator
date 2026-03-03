@@ -25,22 +25,28 @@ client/src/
 │   └── home.tsx               # Main app component with all UI/logic
 ├── lib/
 │   ├── qr-renderer.ts         # DPI-aware QR generation with auto module sizing
-│   ├── file-parser.ts         # Multi-format import (XLSX/CSV/PDF)
-│   ├── zip-exporter.ts        # ZIP export with folder structure
-│   ├── pdf-exporter.ts        # Professional PDF label sheet export
+│   ├── file-parser.ts         # Multi-format import (XLSX/CSV/PDF) with column mapping
+│   ├── zip-exporter.ts        # ZIP export with folder structure + custom filename
+│   ├── pdf-exporter.ts        # Professional PDF label sheet export + custom filename
 │   ├── print-labels.ts        # Print-ready HTML for UK printers
 │   └── qr-verifier.ts         # QR decode verification with jsQR (uses qrOnlyDataURL)
 ```
 
 ## Features
 - Multi-format file import: .xlsx, .xls, .csv, .pdf (drag-and-drop + file picker)
+- **Column mapping modal**: Auto-detects column headers, shows mapping UI when headers don't match expected names. Uses `parseFileRaw()` + `autoMapColumns()` + `applyMapping()` from file-parser.ts
 - DPI-aware QR rendering: module size auto-calculated from label dimensions + DPI + payload
 - Three presets: Indoor Standard (50×30mm/300DPI), Outdoor Harsh (70×40mm/600DPI), Quick Draft (50×30mm/150DPI)
+- **Editable rows**: Double-click any cell (mainFolder, subFolder, assetTag) to inline-edit. Pencil icon on hover. Add/delete rows supported. Re-validates on edit.
 - Duplicate asset tag detection with override modal (Keep All / Keep First Only / Cancel)
 - Batch generation with live progress tracking
 - QR verification using isolated QR-only image (qrOnlyDataURL) for accurate decode
 - Dual export: ZIP (folder structure) + PDF (A4 label sheets with crop marks)
+- **Custom export filename**: Editable inline in results bar, date suffix auto-appended. Passed to `exportToZip()` and `exportToPDF()`.
 - Label-sized gallery cards with aspect ratio matching configured label dimensions
+- **Individual QR download**: Download button appears on hover over gallery cards (top-right corner), uses `stopPropagation` to avoid opening scan viewer
+- **Payload template builder**: Modal with template editor using `{assetTag}`, `{mainFolder}`, `{subFolder}` variables. Toggle for overwrite vs fill-empty-only. Template saved to localStorage.
+- **Session persistence**: Rows and config auto-saved to localStorage (`ec-session-rows`, `ec-session-config`, `ec-session-state`). Resume banner on reopen. Does not persist generated images.
 - Professional printing optimized for UK standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
 - Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, D=pdf, P=print, C=config, ?=help)
@@ -56,3 +62,4 @@ client/src/
 - Electracom logo: `@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png`
 - MOCK_ROWS kept for demo data loading feature (includes intentional duplicate FCU-199001)
 - RECENT_FILES kept as cosmetic mock data
+- file-parser.ts exports: `parseFile()` (auto-mapping), `parseFileRaw()` (raw headers+rows), `autoMapColumns()`, `applyMapping()`, `RawFileData` type
