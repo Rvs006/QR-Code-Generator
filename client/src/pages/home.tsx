@@ -1485,11 +1485,25 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            <p className="text-[12px] mb-4" style={{ color: c.tx3 }}>Duplicate tags will generate separate QR codes with potentially different payloads. Choose how to proceed:</p>
-            <div className="flex gap-2">
-              <button data-testid="button-dupe-keep-all" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623', border: '1px solid rgba(245,166,35,0.3)' }} onClick={handleDuplicateKeepAll}>Keep All</button>
-              <button data-testid="button-dupe-keep-first" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors bg-[#2A5A9E] text-white" onClick={handleDuplicateKeepFirst}>Keep First Only</button>
-              <button data-testid="button-dupe-cancel" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={handleDuplicateCancel}>Cancel</button>
+            <div className="rounded-lg px-3 py-2.5 mb-4 flex items-start gap-2" style={{ background: d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.04)', border: `1px solid rgba(245,166,35,0.15)` }}>
+              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#F5A623]" />
+              <div className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>
+                Your file contains rows with the same Asset Tag name. This can happen when one asset has multiple entries with different data. Choose how to handle them:
+              </div>
+            </div>
+            <div className="space-y-2 mb-4">
+              <button data-testid="button-dupe-keep-all" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.25)' }} onClick={handleDuplicateKeepAll}>
+                <div className="text-[13px] font-semibold mb-0.5" style={{ color: '#F5A623' }}>Keep All Rows</div>
+                <div className="text-[11px]" style={{ color: c.tx3 }}>Import every row, including duplicates. Each will generate its own QR code — useful if duplicate entries have different payloads.</div>
+              </button>
+              <button data-testid="button-dupe-keep-first" className="w-full text-left rounded-lg px-4 py-3 transition-colors bg-[#2A5A9E]" onClick={handleDuplicateKeepFirst}>
+                <div className="text-[13px] font-semibold mb-0.5 text-white">Keep First Only</div>
+                <div className="text-[11px] text-white/70">Remove duplicates and keep only the first occurrence of each Asset Tag. Best when duplicates are accidental.</div>
+              </button>
+              <button data-testid="button-dupe-cancel" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}` }} onClick={handleDuplicateCancel}>
+                <div className="text-[13px] font-semibold mb-0.5" style={{ color: c.tx2 }}>Cancel</div>
+                <div className="text-[11px]" style={{ color: c.tx3 }}>Go back without importing. You can fix your file and try again.</div>
+              </button>
             </div>
           </div>
         </div>
@@ -1600,14 +1614,17 @@ export default function Home() {
             {rawFileData.rawRows.length > 0 && (
               <details className="mb-4">
                 <summary className="text-[11px] font-bold uppercase tracking-wider cursor-pointer select-none py-1" style={{ color: c.tx3 }}>Your file data (first row)</summary>
-                <div className="rounded-lg p-3 mt-2 text-[12px] space-y-1.5 overflow-x-auto" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
+                <div className="rounded-lg p-3 mt-2 space-y-2.5" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
                   {rawFileData.headers.map((h, i) => {
                     const isUsed = Object.values(columnMapping).includes(i);
+                    const val = String(rawFileData.rawRows[0]?.[i] || '—');
                     return (
-                    <div key={i} className="flex gap-2 items-start">
-                      <span className="flex-shrink-0 text-[11px] px-1.5 py-0.5 rounded font-mono" style={{ background: isUsed ? 'rgba(76,175,80,0.12)' : c.bg2, color: isUsed ? '#4CAF50' : c.tx3, minWidth: '24px', textAlign: 'center' }}>{i + 1}</span>
-                      <span className="flex-shrink-0 font-medium" style={{ color: isUsed ? c.tx : c.tx3, minWidth: '80px' }}>{h || `Column ${i + 1}`}</span>
-                      <span className="break-all" style={{ color: c.tx2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>{String(rawFileData.rawRows[0]?.[i] || '—').substring(0, 80)}</span>
+                    <div key={i} className="rounded-lg p-2" style={{ background: isUsed ? (d ? 'rgba(76,175,80,0.06)' : 'rgba(76,175,80,0.04)') : c.bg2 }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono flex-shrink-0" style={{ background: isUsed ? 'rgba(76,175,80,0.12)' : c.bg3, color: isUsed ? '#4CAF50' : c.tx3 }}>{i + 1}</span>
+                        <span className="text-[12px] font-medium truncate" style={{ color: isUsed ? c.tx : c.tx3 }}>{h || `Column ${i + 1}`}</span>
+                      </div>
+                      <div className="text-[11px] break-all leading-relaxed pl-6" style={{ color: c.tx2, fontFamily: "'JetBrains Mono', monospace" }}>{val.substring(0, 120)}{val.length > 120 ? '...' : ''}</div>
                     </div>
                     );
                   })}
