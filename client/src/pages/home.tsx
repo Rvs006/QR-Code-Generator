@@ -90,13 +90,14 @@ const MOCK_ROWS: ParsedRow[] = [
 
 function validateRows(data: ParsedRow[]): RowData[] {
   const tagCount: Record<string, number> = {};
-  data.forEach(r => { tagCount[r.assetTag] = (tagCount[r.assetTag] || 0) + 1; });
+  data.forEach(r => { const tag = r.assetTag.trim(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
   return data.map((r) => {
     if (!r.payload || r.payload.trim() === '') return { ...r, valid: false, warning: 'Empty payload — QR will have no data' };
     let isJson = false;
     try { JSON.parse(r.payload); isJson = true; } catch(e) {}
     if (!isJson) return { ...r, valid: true, warning: 'Payload is not valid JSON' };
-    if (tagCount[r.assetTag] > 1) return { ...r, valid: true, warning: `Duplicate asset tag — appears ${tagCount[r.assetTag]} times` };
+    const tag = r.assetTag.trim();
+    if (tag && tagCount[tag] > 1) return { ...r, valid: true, warning: `Duplicate asset tag — appears ${tagCount[tag]} times` };
     if (r.payload.length > 150) return { ...r, valid: true, warning: `Long payload (${r.payload.length} chars) — may need QR Version 7+` };
     return { ...r, valid: true, warning: null };
   });
@@ -303,7 +304,7 @@ export default function Home() {
 
   const checkAndLoadRows = (validated: RowData[], fileName?: string) => {
     const tagCount: Record<string, number> = {};
-    validated.forEach(r => { tagCount[r.assetTag] = (tagCount[r.assetTag] || 0) + 1; });
+    validated.forEach(r => { const tag = r.assetTag.trim(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
     const dupes: Record<string, number> = {};
     Object.entries(tagCount).forEach(([tag, count]) => { if (count > 1) dupes[tag] = count; });
 
@@ -326,8 +327,10 @@ export default function Home() {
   const handleDuplicateKeepFirst = () => {
     const seen = new Set<string>();
     const deduped = pendingRows.filter(r => {
-      if (seen.has(r.assetTag)) return false;
-      seen.add(r.assetTag);
+      const tag = r.assetTag.trim();
+      if (!tag) return true;
+      if (seen.has(tag)) return false;
+      seen.add(tag);
       return true;
     });
     finalizeLoadRows(validateRows(deduped), lastLoadedFileName);
