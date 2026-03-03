@@ -1,4 +1,5 @@
-import qrIconPath from '@assets/image_1772575316478.png';
+import qrIconLight from '@assets/image_1772575316478.png';
+import qrIconDark from '@assets/Screenshot_2026-03-03_221155-removebg-preview_1772575950459.png';
 
 interface AppIconProps {
   size?: number;
@@ -12,12 +13,9 @@ export default function AppIcon({ size = 36, isDark = false }: AppIconProps) {
       style={{ width: size, height: size }}
     >
       <img
-        src={qrIconPath}
+        src={isDark ? qrIconDark : qrIconLight}
         alt="Electracom QR"
         className="w-full h-full object-contain"
-        style={{
-          filter: isDark ? 'brightness(2.2) saturate(0.6)' : 'none',
-        }}
       />
       <div
         className="absolute left-[15%] right-[15%] h-[2px] rounded-full"
