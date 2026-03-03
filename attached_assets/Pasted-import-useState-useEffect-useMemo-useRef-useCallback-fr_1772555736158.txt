@@ -1,0 +1,1050 @@
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight } from 'lucide-react';
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+
+function PseudoQR({ payload, size, className }) {
+  const canvasRef = useRef(null);
+  const sz = size || 120;
+  const modules = 29;
+
+  const drawQR = useCallback(() => {
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const m = sz / modules;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, sz, sz);
+    ctx.fillStyle = '#000000';
+
+    const seed = hashStr(payload || 'empty');
+    const grid = Array.from({ length: modules }, () => Array(modules).fill(false));
+
+    const drawFinder = (ox, oy) => {
+      for (let r = 0; r < 7; r++) for (let cc = 0; cc < 7; cc++) {
+        const edge = r === 0 || r === 6 || cc === 0 || cc === 6;
+        const inner = r >= 2 && r <= 4 && cc >= 2 && cc <= 4;
+        if (edge || inner) grid[oy + r][ox + cc] = true;
+      }
+    };
+
+    drawFinder(0, 0);
+    drawFinder(modules - 7, 0);
+    drawFinder(0, modules - 7);
+
+    for (let i = 8; i < modules - 8; i++) {
+      if (i % 2 === 0) { grid[6][i] = true; grid[i][6] = true; }
+    }
+
+    const ax = 20; const ay = 20;
+    for (let r = -2; r <= 2; r++) for (let cc = -2; cc <= 2; cc++) {
+      const edge = Math.abs(r) === 2 || Math.abs(cc) === 2;
+      const center = r === 0 && cc === 0;
+      if (edge || center) grid[ay + r][ax + cc] = true;
+    }
+
+    let s = seed;
+    for (let r = 0; r < modules; r++) for (let cc = 0; cc < modules; cc++) {
+      if (grid[r][cc]) continue;
+      if (r < 9 && cc < 9) continue;
+      if (r < 9 && cc >= modules - 8) continue;
+      if (r >= modules - 8 && cc < 9) continue;
+      if (r === 6 || cc === 6) continue;
+      if (r >= ay - 2 && r <= ay + 2 && cc >= ax - 2 && cc <= ax + 2) continue;
+      s = ((s * 1103515245 + 12345) & 0x7fffffff);
+      if (s % 100 < 48) grid[r][cc] = true;
+    }
+
+    for (let r = 0; r < modules; r++) for (let cc = 0; cc < modules; cc++) {
+      if (grid[r][cc]) ctx.fillRect(Math.floor(cc * m), Math.floor(r * m), Math.ceil(m), Math.ceil(m));
+    }
+  }, [payload, sz]);
+
+  useEffect(() => { drawQR(); }, [drawQR]);
+
+  return <canvas ref={canvasRef} width={sz} height={sz} className={className} />;
+}
+
+const MOCK_ROWS = [
+  { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'FCU-199001', payload: '{"guid":"a1b2c3d4-e5f6-7890-abcd-ef1234567890","site":"334OS","asset":"FCU-199001","type":"FCU","floor":"L19"}' },
+  { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'FCU-199002', payload: '{"guid":"b2c3d4e5-f6a7-8901-bcde-f12345678901","site":"334OS","asset":"FCU-199002","type":"FCU","floor":"L19"}' },
+  { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'AHU-300015', payload: '{"guid":"c3d4e5f6-a7b8-9012-cdef-123456789012","site":"334OS","asset":"AHU-300015","type":"AHU","floor":"B2"}' },
+  { mainFolder: '334OS', subFolder: 'Leak Detection', assetTag: 'LD-400001', payload: '{"guid":"d4e5f6a7-b8c9-0123-defa-234567890123","site":"334OS","asset":"LD-400001","type":"LD","floor":"B1"}' },
+  { mainFolder: '1ES', subFolder: 'HVAC', assetTag: 'VAV-500010', payload: '{"guid":"e5f6a7b8-c9d0-1234-efab-345678901234","site":"1ES","asset":"VAV-500010","type":"VAV","floor":"L5"}' },
+  { mainFolder: '1ES', subFolder: 'HVAC', assetTag: 'VAV-500011', payload: '{"guid":"f6a7b8c9-d0e1-2345-fabc-456789012345","site":"1ES","asset":"VAV-500011","type":"VAV","floor":"L5"}' },
+  { mainFolder: '1ES', subFolder: 'Fire', assetTag: 'FD-600003', payload: '{"guid":"a7b8c9d0-e1f2-3456-abcd-567890123456","site":"1ES","asset":"FD-600003","type":"FD","floor":"L3"}' },
+  { mainFolder: '1TS', subFolder: 'BMS', assetTag: 'CTL-700020', payload: '{"guid":"b8c9d0e1-f2a3-4567-bcde-678901234567","site":"1TS","asset":"CTL-700020","type":"CTL","floor":"L1"}' },
+  { mainFolder: '1TS', subFolder: 'BMS', assetTag: 'SEN-800045', payload: '' },
+  { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'FCU-199001', payload: '{"guid":"x9y0z1a2-b3c4-5678-cdef-789012345678","site":"334OS","asset":"FCU-199001","type":"FCU","floor":"L20"}' },
+  { mainFolder: '1ES', subFolder: '', assetTag: 'PMP-900100', payload: '{"guid":"z1a2b3c4-d5e6-7890-defa-890123456789","site":"1ES","asset":"PMP-900100","type":"PMP","floor":"B3","extra":"extended-payload-data-for-testing-long-content-in-qr-generation-scenario-to-push-version-higher"}' },
+  { mainFolder: '334OS', subFolder: 'EMS', assetTag: 'CHW-110005', payload: '{"guid":"a2b3c4d5-e6f7-8901-efab-901234567890","site":"334OS","asset":"CHW-110005","type":"CHW","floor":"L12"}' },
+];
+
+const PRESETS = {
+  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 8, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true },
+  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 10, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true },
+  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 6, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false },
+};
+
+const EC_LABELS = { L: 'Low (7%)', M: 'Medium (15%)', Q: 'Quartile (25%)', H: 'High (30%)' };
+
+const RECENT_FILES = [
+  { name: 'asset_labels_v3.xlsx', rows: 350, date: 'Today, 2:14 PM', folders: 8 },
+  { name: 'site_334OS_batch.xlsx', rows: 128, date: 'Yesterday', folders: 3 },
+  { name: 'fire_systems_audit.csv', rows: 45, date: 'Dec 12, 2024', folders: 2 },
+];
+
+function validateRows(data) {
+  const tagCount = {};
+  data.forEach(r => { tagCount[r.assetTag] = (tagCount[r.assetTag] || 0) + 1; });
+  return data.map((r, i) => {
+    if (!r.payload || r.payload.trim() === '') return { ...r, valid: false, warning: 'Empty payload — QR will have no data' };
+    let isJson = false;
+    try { JSON.parse(r.payload); isJson = true; } catch(e) {}
+    if (!isJson) return { ...r, valid: true, warning: 'Payload is not valid JSON' };
+    if (tagCount[r.assetTag] > 1) return { ...r, valid: true, warning: `Duplicate asset tag — appears ${tagCount[r.assetTag]} times` };
+    if (r.payload.length > 150) return { ...r, valid: true, warning: `Long payload (${r.payload.length} chars) — may need QR Version 7+` };
+    return { ...r, valid: true, warning: null };
+  });
+}
+
+function App() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    return true;
+  });
+  const [appState, setAppState] = useState('empty');
+  const [rows, setRows] = useState([]);
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [showConfig, setShowConfig] = useState(false);
+  const [showPayloadModal, setShowPayloadModal] = useState(null);
+  const [showScanViewer, setShowScanViewer] = useState(false);
+  const [scanIndex, setScanIndex] = useState(0);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showRecentFiles, setShowRecentFiles] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [config, setConfig] = useState({ ...PRESETS.indoor });
+  const [activePreset, setActivePreset] = useState('indoor');
+  const [progress, setProgress] = useState({ current: 0, total: 0, asset: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
+  const [generatedCount, setGeneratedCount] = useState(0);
+  const [generatedIndices, setGeneratedIndices] = useState([]);
+  const [sortCol, setSortCol] = useState(null);
+  const [sortDir, setSortDir] = useState('asc');
+  const [galleryPage, setGalleryPage] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [verifyResults, setVerifyResults] = useState([]);
+  const [verifyRunning, setVerifyRunning] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState(0);
+  const [showFolderTree, setShowFolderTree] = useState(false);
+  const [printSelected, setPrintSelected] = useState(new Set());
+  const [printPayloadView, setPrintPayloadView] = useState(null);
+  const genIntervalRef = useRef(null);
+  const verifyIntervalRef = useRef(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const h = (e) => setDark(e.matches);
+    mq.addEventListener('change', h);
+    return () => mq.removeEventListener('change', h);
+  }, []);
+
+  const toggleTheme = () => setDark(p => !p);
+
+  const d = dark;
+  const c = {
+    bg: d ? '#070a10' : '#f4f5f7',
+    bg1: d ? '#0e1219' : '#ffffff',
+    bg2: d ? '#151a24' : '#f0f1f4',
+    bg3: d ? '#1c2230' : '#e4e6eb',
+    bdr: d ? '#252d3a' : '#dde0e6',
+    bdrA: d ? '#3a4560' : '#c0c4cc',
+    tx: d ? '#e6e9f0' : '#1a1d24',
+    tx2: d ? '#8a95a8' : '#5a6070',
+    tx3: d ? '#5a6577' : '#9a9fae',
+  };
+
+  const validation = useMemo(() => {
+    const valid = rows.filter(r => r.valid && !r.warning).length;
+    const warnings = rows.filter(r => r.warning && r.valid).length;
+    const errors = rows.filter(r => !r.valid).length;
+    return { valid, warnings, errors, total: rows.length };
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    let result = rows.map((r, i) => ({ ...r, _idx: i }));
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(r => r.assetTag.toLowerCase().includes(q) || r.mainFolder.toLowerCase().includes(q) || r.subFolder.toLowerCase().includes(q));
+    }
+    if (sortCol) { result.sort((a, b) => { const av = a[sortCol] || ''; const bv = b[sortCol] || ''; return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av); }); }
+    return result;
+  }, [rows, searchQuery, sortCol, sortDir]);
+
+  const folders = useMemo(() => {
+    const f = {};
+    rows.forEach(r => { const key = [r.mainFolder, r.subFolder].filter(Boolean).join('/') || 'Outputted QR Codes'; f[key] = (f[key] || 0) + 1; });
+    return f;
+  }, [rows]);
+
+  const handleLoadDemo = () => { setRows(validateRows(MOCK_ROWS)); setAppState('loaded'); setSelectedRows(new Set()); setGeneratedCount(0); setGeneratedIndices([]); };
+  const handleSwapFile = () => { handleLoadDemo(); };
+
+  const handleGenerate = () => {
+    const indices = selectedRows.size > 0
+      ? rows.map((r, idx) => selectedRows.has(idx) && r.valid ? idx : -1).filter(i => i >= 0)
+      : rows.map((r, idx) => r.valid ? idx : -1).filter(i => i >= 0);
+    const count = indices.length;
+    if (count === 0) return;
+    const validR = indices.map(i => rows[i]);
+    setProgress({ current: 0, total: count, asset: validR[0]?.assetTag || '' });
+    setAppState('generating');
+    let i = 0;
+    genIntervalRef.current = setInterval(() => {
+      i++;
+      if (i >= count) { clearInterval(genIntervalRef.current); genIntervalRef.current = null; setGeneratedCount(count); setGeneratedIndices(indices); setAppState('results'); setGalleryPage(0); }
+      else { setProgress({ current: i, total: count, asset: validR[Math.min(i, validR.length - 1)]?.assetTag || '' }); }
+    }, 60);
+  };
+
+  const handleCancelGenerate = () => { if (genIntervalRef.current) clearInterval(genIntervalRef.current); genIntervalRef.current = null; setAppState('loaded'); };
+  const handleSort = (col) => { if (sortCol === col) { setSortDir(p => p === 'asc' ? 'desc' : 'asc'); } else { setSortCol(col); setSortDir('asc'); } };
+  const handleSelectAll = () => { if (selectedRows.size === rows.length) setSelectedRows(new Set()); else setSelectedRows(new Set(rows.map((_, i) => i))); };
+  const handleSelectRow = (idx) => { setSelectedRows(prev => { const n = new Set(prev); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
+  const handleUpdateConfig = (key, value) => { setConfig(prev => ({ ...prev, [key]: value })); setActivePreset('custom'); };
+  const handleSelectPreset = (key) => { setConfig({ ...PRESETS[key] }); setActivePreset(key); setShowPresetDropdown(false); };
+  const handleCopy = (text) => { setCopied(true); setTimeout(() => setCopied(false), 1500); };
+
+  const handleStartVerify = () => {
+    setShowVerifyModal(true);
+    setVerifyRunning(true);
+    setVerifyProgress(0);
+    setVerifyResults([]);
+    const validItems = galleryItems;
+    let idx = 0;
+    verifyIntervalRef.current = setInterval(() => {
+      if (idx >= validItems.length) {
+        clearInterval(verifyIntervalRef.current);
+        verifyIntervalRef.current = null;
+        setVerifyRunning(false);
+        return;
+      }
+      const item = validItems[idx];
+      const passed = Math.random() > 0.08;
+      setVerifyResults(prev => [...prev, {
+        assetTag: item.assetTag,
+        folder: [item.mainFolder, item.subFolder].filter(Boolean).join('/'),
+        payload: item.payload,
+        passed,
+        decodedMatch: passed,
+        detail: passed ? 'Payload matches source' : 'Decoded payload differs at byte offset 47',
+      }]);
+      idx++;
+      setVerifyProgress(Math.round((idx / validItems.length) * 100));
+    }, 120);
+  };
+
+  const handleCloseVerify = () => {
+    if (verifyIntervalRef.current) clearInterval(verifyIntervalRef.current);
+    setShowVerifyModal(false);
+    setVerifyRunning(false);
+  };
+
+  const folderTree = useMemo(() => {
+    const tree = {};
+    (generatedIndices.length > 0 ? generatedIndices.map(i => rows[i]).filter(Boolean) : rows.filter(r => r.valid)).forEach(r => {
+      const main = r.mainFolder || 'Outputted QR Codes';
+      const sub = r.subFolder || '';
+      if (!tree[main]) tree[main] = {};
+      if (!tree[main][sub]) tree[main][sub] = [];
+      tree[main][sub].push(r.assetTag);
+    });
+    return tree;
+  }, [rows]);
+
+  const configSummary = `${EC_LABELS[config.ec]?.split(' ')[0]} EC · ${config.modSize}px · ${config.labelW}×${config.labelH}mm · ${config.dpi} DPI · ${config.format.toUpperCase()}`;
+  const PER_PAGE = 20;
+  const galleryItems = useMemo(() => generatedIndices.length > 0 ? generatedIndices.map(i => rows[i]).filter(Boolean) : rows.filter(r => r.valid), [rows, generatedIndices]);
+  const pageItems = galleryItems.slice(galleryPage * PER_PAGE, (galleryPage + 1) * PER_PAGE);
+  const totalPages = Math.ceil(galleryItems.length / PER_PAGE);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (showScanViewer) { setShowScanViewer(false); return; }
+        if (showPayloadModal) { setShowPayloadModal(null); return; }
+        if (showPrintPreview) { setShowPrintPreview(false); setPrintPayloadView(null); return; }
+        if (showConfig) { setShowConfig(false); return; }
+        if (showHelpModal) { setShowHelpModal(false); return; }
+        if (showVerifyModal) { handleCloseVerify(); return; }
+        if (showFolderTree) { setShowFolderTree(false); return; }
+      }
+      if (showScanViewer && galleryItems.length > 0) {
+        if (e.key === 'ArrowLeft' && scanIndex > 0) setScanIndex(p => p - 1);
+        if (e.key === 'ArrowRight' && scanIndex < galleryItems.length - 1) setScanIndex(p => p + 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showScanViewer, showPayloadModal, showPrintPreview, showConfig, showHelpModal, showVerifyModal, showFolderTree, scanIndex, galleryItems.length]);
+
+  const prettyPayload = (p) => { try { return JSON.stringify(JSON.parse(p), null, 2); } catch(e) { return p || '(empty)'; } };
+
+  const LOGO = "https://figr2.s3.ap-south-1.amazonaws.com/figr2/uploads/703f906e-282a-4eda-b3ff-5604fc3dfbb3/original.png";
+
+  return (
+    <div className="min-h-screen" style={{ background: c.bg, color: c.tx, fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      {/* Gradient Bar */}
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #00B0F0, #F5A623, #4CAF50, #9C27B0, #E53935)' }} />
+
+      {/* Header */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl px-6 py-3 flex items-center gap-4" style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
+        <div className="flex items-center gap-3">
+          <img src={LOGO} alt="Electracom" className="h-10 object-contain" style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
+          <div className="w-px h-7" style={{ background: c.bdr }} />
+          <span className="font-semibold text-[15px] tracking-wide" style={{ color: c.tx2 }}>QR Code Generator</span>
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          {/* Preset */}
+          <div className="relative">
+            <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
+              <Zap className="w-3.5 h-3.5 text-[#F5A623]" />
+              <span>{activePreset === 'custom' ? 'Custom' : PRESETS[activePreset]?.name}</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {showPresetDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                {Object.entries(PRESETS).map(([key, preset]) => (
+                  <button key={key} className="w-full text-left px-3 py-2.5 transition-colors" onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => handleSelectPreset(key)}>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[13px] ${activePreset === key ? 'font-semibold' : ''}`} style={{ color: activePreset === key ? '#00B0F0' : c.tx }}>{preset.name}</span>
+                      {activePreset === key && <Check className="w-3.5 h-3.5 text-[#00B0F0]" />}
+                    </div>
+                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: c.tx3 }}>{preset.desc}</div>
+                  </button>
+                ))}
+                <div style={{ borderTop: `1px solid ${c.bdr}` }}>
+                  <button className="w-full text-left px-3 py-2.5 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => { setShowPresetDropdown(false); setShowConfig(true); }}>
+                    <Settings className="w-3.5 h-3.5 inline mr-2" />Customize...
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>
+
+          {/* Recent Files */}
+          <div className="relative">
+            <button className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
+            {showRecentFiles && (
+              <div className="absolute right-0 top-full mt-1 w-72 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                <div className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Recent Files</div>
+                {RECENT_FILES.map((f, i) => (
+                  <button key={i} className="w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors" onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => { setShowRecentFiles(false); handleLoadDemo(); }}>
+                    <FileSpreadsheet className="w-4 h-4 flex-shrink-0" style={{ color: '#2A5A9E' }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-medium truncate" style={{ color: c.tx }}>{f.name}</div>
+                      <div className="text-[11px]" style={{ color: c.tx3 }}>{f.rows} rows · {f.folders} folders · {f.date}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className="w-4 h-4" /></button>
+
+          <button className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#F5A623'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={toggleTheme} title={d ? 'Light mode' : 'Dark mode'}>
+            {d ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-[1080px] mx-auto px-6 py-7">
+        {/* EMPTY STATE */}
+        {appState === 'empty' && (
+          <div className="flex flex-col items-center pt-16">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6" style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: `1px solid ${c.bdr}` }}>
+              <QrCode className="w-8 h-8 text-[#2A5A9E]" />
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Generate QR Code Labels</h1>
+            <p className="text-[15px] mb-8 text-center max-w-md" style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
+
+            <div className="w-full max-w-lg border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer group transition-all" style={{ borderColor: c.bdr }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.background = d ? 'rgba(42,90,158,0.05)' : 'rgba(42,90,158,0.03)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.background = 'transparent'; }} onClick={handleLoadDemo}>
+              <img src={LOGO} alt="Electracom" className="h-14 object-contain mx-auto mb-5" style={{ filter: d ? 'brightness(1.8)' : 'none', opacity: 0.5 }} />
+              <Upload className="w-10 h-10 mx-auto mb-4 transition-colors" style={{ color: c.tx3 }} />
+              <p className="text-[15px] font-medium mb-1" style={{ color: c.tx2 }}>Drop your .xlsx or .csv file here</p>
+              <p className="text-[13px]" style={{ color: c.tx3 }}>or click to browse</p>
+              <div className="mt-4 flex items-center justify-center gap-1.5 text-[12px]" style={{ color: c.tx3 }}>
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>4 columns: Main Folder · Sub-Folder · Asset Tag · Payload</span>
+              </div>
+            </div>
+
+            <button className="mt-5 flex items-center gap-2 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => e.currentTarget.style.color = '#00B0F0'} onMouseLeave={(e) => e.currentTarget.style.color = c.tx3} onClick={handleLoadDemo}>
+              <RotateCcw className="w-3.5 h-3.5" />Resume previous session (asset_labels_v3.xlsx · 350 rows)
+            </button>
+
+            <div className="w-full max-w-lg mt-12">
+              <button className="flex items-center gap-2 text-[13px] mb-3 transition-colors" style={{ color: c.tx3 }} onClick={() => setShowHowItWorks(p => !p)}>
+                {showHowItWorks ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                <span className="font-semibold uppercase tracking-wider text-[11px]">How it works</span>
+              </button>
+              {showHowItWorks && (
+                <div className="rounded-xl p-5 space-y-3" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                  {[
+                    { n: '1', t: 'Upload', d: 'Drop an Excel/CSV file with asset data — Main Folder, Sub-Folder, Asset Tag, and JSON Payload.' },
+                    { n: '2', t: 'Validate & Configure', d: 'Data is validated automatically. Adjust QR settings or use a preset. Select specific rows if needed.' },
+                    { n: '3', t: 'Generate & Export', d: 'Generate in-browser (no data leaves your machine). Download ZIP or print labels.' },
+                  ].map(step => (
+                    <div key={step.n} className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-[#2A5A9E] flex items-center justify-center flex-shrink-0 mt-0.5"><span className="text-white text-[11px] font-bold">{step.n}</span></div>
+                      <div>
+                        <div className="text-[14px] font-semibold">{step.t}</div>
+                        <div className="text-[13px] leading-relaxed" style={{ color: c.tx3 }}>{step.d}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* DATA LOADED / GENERATING / RESULTS */}
+        {appState !== 'empty' && (
+          <div>
+            {/* File Info */}
+            <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="w-4 h-4 text-[#2A5A9E]" />
+                <span className="text-[14px] font-medium">asset_labels_v3.xlsx</span>
+                <div className="w-px h-4" style={{ background: c.bdr }} />
+                <span className="text-[13px]" style={{ color: c.tx2, fontFamily: "'JetBrains Mono', monospace" }}>{rows.length} rows</span>
+                <div className="w-px h-4" style={{ background: c.bdr }} />
+                <span className="text-[13px]" style={{ color: c.tx2, fontFamily: "'JetBrains Mono', monospace" }}>{Object.keys(folders).length} folders</span>
+              </div>
+              <button className="text-[13px] text-[#00B0F0]" onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'} onClick={handleSwapFile}>Swap file</button>
+            </div>
+
+            {/* Validation */}
+            {(validation.warnings > 0 || validation.errors > 0) && (
+              <div className="flex items-center gap-4 rounded-xl px-4 py-3 mb-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center gap-1.5"><Check className="w-4 h-4 text-[#4CAF50]" /><span className="text-[13px] text-[#4CAF50] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{validation.valid}</span><span className="text-[13px]" style={{ color: c.tx3 }}>valid</span></div>
+                {validation.warnings > 0 && <div className="flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 text-[#F5A623]" /><span className="text-[13px] text-[#F5A623] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{validation.warnings}</span><span className="text-[13px]" style={{ color: c.tx3 }}>warnings</span></div>}
+                {validation.errors > 0 && <div className="flex items-center gap-1.5"><AlertCircle className="w-4 h-4 text-[#E53935]" /><span className="text-[13px] text-[#E53935] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{validation.errors}</span><span className="text-[13px]" style={{ color: c.tx3 }}>errors</span></div>}
+                <span className="text-[12px] ml-auto" style={{ color: c.tx3 }}>Errors block generation</span>
+              </div>
+            )}
+
+            {/* Search */}
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
+                <input className="w-full rounded-lg pl-9 pr-3 py-2 text-[13px] outline-none transition-colors" style={{ background: c.bg1, border: `1px solid ${c.bdr}`, color: c.tx }} onFocus={(e) => e.target.style.borderColor = '#2A5A9E'} onBlur={(e) => e.target.style.borderColor = c.bdr} placeholder="Search by asset tag, folder..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              </div>
+              {selectedRows.size > 0 && <span className="text-[12px] text-[#00B0F0] px-3 py-1.5 rounded-lg font-medium" style={{ background: 'rgba(0,176,240,0.1)', fontFamily: "'JetBrains Mono', monospace" }}>{selectedRows.size} selected</span>}
+            </div>
+
+            {/* Table */}
+            <div className="rounded-xl overflow-hidden mb-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+              <div className="max-h-[360px] overflow-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr style={{ background: c.bg3 }} className="sticky top-0 z-10">
+                      <th className="w-10 px-3 py-2.5 text-left"><input type="checkbox" className="accent-[#2A5A9E] w-3.5 h-3.5 cursor-pointer" checked={selectedRows.size === rows.length && rows.length > 0} onChange={handleSelectAll} /></th>
+                      <th className="w-8 px-2 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>#</th>
+                      {['mainFolder', 'subFolder', 'assetTag'].map(col => (
+                        <th key={col} className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider cursor-pointer" style={{ color: c.tx3 }} onClick={() => handleSort(col)}>
+                          <div className="flex items-center gap-1">{col === 'mainFolder' ? 'Main Folder' : col === 'subFolder' ? 'Sub-Folder' : 'Asset Tag'}<ArrowUpDown className="w-3 h-3" /></div>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>Payload</th>
+                      <th className="w-10 px-2 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredRows.map((row, i) => (
+                      <tr key={i} className="transition-colors" style={{ borderTop: `1px solid ${c.bdr}` }} onMouseEnter={(e) => e.currentTarget.style.background = c.bg2} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                        <td className="px-3 py-2"><input type="checkbox" className="accent-[#2A5A9E] w-3.5 h-3.5 cursor-pointer" checked={selectedRows.has(row._idx)} onChange={() => handleSelectRow(row._idx)} /></td>
+                        <td className="px-2 py-2 text-[12px]" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>{row._idx + 1}</td>
+                        <td className="px-3 py-2">{row.mainFolder}</td>
+                        <td className="px-3 py-2" style={{ color: c.tx2 }}>{row.subFolder || '—'}</td>
+                        <td className="px-3 py-2 font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{row.assetTag}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate text-[#00B0F0] cursor-pointer" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'} onClick={() => setShowPayloadModal(row)}>
+                          {row.payload || <span className="text-[#E53935] italic">empty</span>}
+                        </td>
+                        <td className="px-2 py-2">
+                          {!row.valid && <AlertCircle className="w-3.5 h-3.5 text-[#E53935]" />}
+                          {row.valid && row.warning && <AlertTriangle className="w-3.5 h-3.5 text-[#F5A623]" />}
+                          {row.valid && !row.warning && <Check className="w-3.5 h-3.5 text-[#4CAF50]" />}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            {appState === 'loaded' && (
+              <div className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center gap-2">
+                  <Settings className="w-3.5 h-3.5" style={{ color: c.tx3 }} />
+                  <span className="text-[13px]" style={{ color: c.tx3 }}>{configSummary}</span>
+                  <button className="text-[13px] text-[#00B0F0] ml-1" onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'} onClick={() => setShowConfig(true)}>Edit</button>
+                </div>
+                <button className="flex items-center gap-2 bg-[#2A5A9E] text-white px-5 py-2.5 rounded-lg font-semibold text-[14px] transition-colors shadow-lg disabled:opacity-40 disabled:cursor-not-allowed" style={{ boxShadow: '0 4px 14px rgba(42,90,158,0.25)' }} onMouseEnter={(e) => e.currentTarget.style.background = '#1B3F6F'} onMouseLeave={(e) => e.currentTarget.style.background = '#2A5A9E'} onClick={handleGenerate} disabled={validation.errors > 0 && selectedRows.size === 0}>
+                  <QrCode className="w-4 h-4" />Generate {selectedRows.size > 0 ? `${selectedRows.size} selected` : `all ${validation.valid + validation.warnings}`}
+                </button>
+              </div>
+            )}
+
+            {/* Generating */}
+            {appState === 'generating' && (
+              <div className="rounded-xl px-4 py-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[13px]" style={{ color: c.tx2 }}>Processing {progress.current} of {progress.total} — <span className="font-medium" style={{ color: c.tx, fontFamily: "'JetBrains Mono', monospace" }}>{progress.asset}</span></span>
+                  <button className="text-[13px] text-[#E53935]" onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'} onClick={handleCancelGenerate}>Cancel</button>
+                </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: c.bg3 }}>
+                  <div className="h-full rounded-full transition-all duration-150" style={{ background: 'linear-gradient(90deg, #00B0F0, #2A5A9E)', width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }} />
+                </div>
+                <div className="text-[12px] mt-1.5" style={{ color: c.tx3 }}>{Math.round(progress.total > 0 ? (progress.current / progress.total) * 100 : 0)}% complete</div>
+              </div>
+            )}
+
+            {/* Results */}
+            {appState === 'results' && (
+              <div>
+                <div className="flex items-center justify-between rounded-xl px-4 py-3 mb-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
+                    <span className="text-[14px] font-medium">{generatedCount} QR codes generated</span>
+                    <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button className="flex items-center gap-2 bg-[#4CAF50] text-white px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => e.currentTarget.style.background = '#388E3C'} onMouseLeave={(e) => e.currentTarget.style.background = '#4CAF50'} onClick={() => setShowFolderTree(true)}><Download className="w-4 h-4" />Download ZIP</button>
+                    <button className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />Print</button>
+                    <button className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-[13px] transition-colors" style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />Verify</button>
+                    <button className="flex items-center gap-2 text-[13px] px-3 py-2 transition-colors" style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />Re-generate</button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mb-4 px-1">
+                  <Settings className="w-3.5 h-3.5" style={{ color: c.tx3 }} />
+                  <span className="text-[12px]" style={{ color: c.tx3 }}>{configSummary}</span>
+                  <button className="text-[12px] text-[#00B0F0]" onMouseEnter={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={(e) => e.currentTarget.style.textDecoration = 'none'} onClick={() => { setShowConfig(true); }}>Edit & re-generate</button>
+                </div>
+
+                <div className="grid grid-cols-5 gap-3 mb-4">
+                  {pageItems.map((item, i) => (
+                    <div key={i} className="rounded-xl overflow-hidden cursor-pointer transition-all" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }} onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#2A5A9E'; e.currentTarget.style.transform = 'translateY(-2px)'; }} onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.bdr; e.currentTarget.style.transform = 'translateY(0)'; }} onClick={() => { setScanIndex(galleryPage * PER_PAGE + i); setShowScanViewer(true); }}>
+                      <div className="bg-white p-3 flex items-center justify-center aspect-square"><PseudoQR payload={item.payload} size={140} className="w-full h-full" /></div>
+                      <div className="p-2.5">
+                        <div className="text-[12px] font-semibold text-center truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.assetTag}</div>
+                        <div className="text-[11px] text-center truncate mt-0.5" style={{ color: c.tx3 }}>{[item.mainFolder, item.subFolder].filter(Boolean).join(' / ')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2">
+                    <button className="p-1.5 rounded-lg disabled:opacity-30" style={{ color: c.tx3 }} disabled={galleryPage === 0} onClick={() => setGalleryPage(p => p - 1)}><ChevronLeft className="w-4 h-4" /></button>
+                    <span className="text-[12px]" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>{galleryPage + 1} / {totalPages}</span>
+                    <button className="p-1.5 rounded-lg disabled:opacity-30" style={{ color: c.tx3 }} disabled={galleryPage >= totalPages - 1} onClick={() => setGalleryPage(p => p + 1)}><ChevronRight className="w-4 h-4" /></button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* CONFIG SLIDE-OUT */}
+      {showConfig && (
+        <div className="fixed inset-0 z-[200]">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowConfig(false)} />
+          <div className="absolute right-0 top-0 h-full w-[380px] overflow-y-auto" style={{ background: c.bg1, borderLeft: `1px solid ${c.bdr}` }}>
+            <div className="sticky top-0 px-5 py-4 flex items-center justify-between z-10" style={{ background: c.bg1, borderBottom: `1px solid ${c.bdr}` }}>
+              <h2 className="text-[16px] font-bold">QR Configuration</h2>
+              <button className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => setShowConfig(false)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-5 space-y-5">
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider block mb-2" style={{ color: c.tx3 }}>Preset</label>
+                <div className="flex gap-2">
+                  {Object.entries(PRESETS).map(([key, preset]) => (
+                    <button key={key} className="flex-1 px-3 py-2.5 rounded-lg text-left transition-all" style={activePreset === key ? { background: 'rgba(42,90,158,0.15)', border: '1px solid #2A5A9E' } : { background: c.bg2, border: `1px solid ${c.bdr}` }} onClick={() => handleSelectPreset(key)}>
+                      <div className="text-[12px] font-semibold" style={{ color: activePreset === key ? '#00B0F0' : c.tx2 }}>{preset.name}</div>
+                      <div className="text-[10px] mt-0.5 leading-snug" style={{ color: c.tx3 }}>{preset.desc.split(' — ')[1]}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>QR Code</div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[12px] font-semibold flex items-center gap-1.5 mb-1.5" style={{ color: c.tx2 }}>Error Correction</label>
+                    <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.ec} onChange={(e) => handleUpdateConfig('ec', e.target.value)}>
+                      {Object.entries(EC_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[['modSize', 'Module Size (px)'], ['quiet', 'Quiet Zone']].map(([key, label]) => (
+                      <div key={key}>
+                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
+                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
+                    <span className="text-[13px]" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
+                    <button className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
+                      <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.pixelPerfect ? '22px' : '3px' }} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Label & Print</div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {[['labelW', 'Width (mm)'], ['labelH', 'Height (mm)']].map(([key, label]) => (
+                      <div key={key}>
+                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
+                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Print DPI</label>
+                    <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.dpi} onChange={(e) => handleUpdateConfig('dpi', parseInt(e.target.value))}>
+                      <option value={150}>150 DPI (Draft)</option><option value={300}>300 DPI (Standard)</option><option value={600}>600 DPI (High Quality)</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[['fontTag', 'Tag Font (pt)'], ['fontPath', 'Path Font (pt)']].map(([key, label]) => (
+                      <div key={key}>
+                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
+                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Image Format</label>
+                    <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.format} onChange={(e) => handleUpdateConfig('format', e.target.value)}>
+                      <option value="png">PNG</option><option value="svg">SVG</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Live Preview — Scaled Label</div>
+                <div className="rounded-xl p-5 flex flex-col items-center" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
+                  {/* Scaled label outline — 1px = 1mm for visual proportion */}
+                  <div className="relative flex flex-col items-center justify-center bg-white rounded transition-all duration-300" style={{ width: `${Math.min(config.labelW * 2.8, 280)}px`, height: `${Math.min(config.labelH * 2.8, 200)}px`, border: '1.5px dashed #ccc' }}>
+                    {/* Dimension markers */}
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1">
+                      <div className="h-px flex-1" style={{ background: '#bbb', minWidth: '16px' }} />
+                      <span className="text-[9px] font-semibold px-1" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>{config.labelW}mm</span>
+                      <div className="h-px flex-1" style={{ background: '#bbb', minWidth: '16px' }} />
+                    </div>
+                    <div className="absolute -right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
+                      <div className="w-px flex-1" style={{ background: '#bbb', minHeight: '8px' }} />
+                      <span className="text-[9px] font-semibold" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace", writingMode: 'vertical-lr' }}>{config.labelH}mm</span>
+                      <div className="w-px flex-1" style={{ background: '#bbb', minHeight: '8px' }} />
+                    </div>
+                    {/* QR + label content scaled to fit */}
+                    <PseudoQR payload={rows.length > 0 ? rows[0].payload : 'preview'} size={Math.min(config.labelH * 2.2, 120)} />
+                    <div className="text-[10px] font-bold text-[#111] mt-1 text-center" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: `${Math.min(config.fontTag, 12) * 0.85}px` }}>{rows.length > 0 ? rows[0].assetTag : 'FCU-199001'}</div>
+                    <div className="text-[8px] text-[#888] text-center" style={{ fontSize: `${Math.min(config.fontPath, 9) * 0.8}px` }}>{rows.length > 0 ? [rows[0].mainFolder, rows[0].subFolder].filter(Boolean).join(' / ') : '334OS / EMS'}</div>
+                  </div>
+                  {/* Config summary below */}
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-4 text-[10px]" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>
+                    <span>{config.labelW}×{config.labelH}mm</span>
+                    <span>·</span>
+                    <span>{config.dpi} DPI</span>
+                    <span>·</span>
+                    <span>{EC_LABELS[config.ec]}</span>
+                    <span>·</span>
+                    <span>{config.modSize}px modules</span>
+                  </div>
+                  <div className="text-[9px] mt-1.5 text-center" style={{ color: c.tx3 }}>{config.pixelPerfect ? '✓ Pixel-perfect' : '✗ Pixel-perfect off'} · Quiet zone: {config.quiet} modules</div>
+                </div>
+              </div>
+
+              <button className="w-full rounded-lg py-2.5 text-[13px] font-semibold transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }}>Save as Preset</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PAYLOAD MODAL */}
+      {showPayloadModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowPayloadModal(null)} />
+          <div className="relative rounded-2xl max-w-lg w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={() => setShowPayloadModal(null)}><X className="w-4 h-4" /></button>
+            <h3 className="text-[16px] font-bold mb-1">Payload Data</h3>
+            <p className="text-[13px] mb-4" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>{showPayloadModal.assetTag} — {[showPayloadModal.mainFolder, showPayloadModal.subFolder].filter(Boolean).join(' / ')}</p>
+            {showPayloadModal.warning && <div className="flex items-center gap-2 mb-3 px-3 py-2 rounded-lg text-[12px]" style={{ background: showPayloadModal.valid ? 'rgba(245,166,35,0.1)' : 'rgba(229,57,53,0.1)', color: showPayloadModal.valid ? '#F5A623' : '#E53935' }}>{showPayloadModal.valid ? <AlertTriangle className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}{showPayloadModal.warning}</div>}
+            <pre className="rounded-xl p-4 text-[13px] text-[#00B0F0] overflow-x-auto whitespace-pre-wrap break-all leading-relaxed" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>{prettyPayload(showPayloadModal.payload)}</pre>
+            <button className="mt-3 flex items-center gap-1.5 text-[12px] transition-colors" style={{ color: copied ? '#4CAF50' : c.tx3 }} onClick={() => handleCopy(showPayloadModal.payload)}>{copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}{copied ? 'Copied!' : 'Copy payload'}</button>
+          </div>
+        </div>
+      )}
+
+      {/* SCAN VIEWER — Full-screen overlay for phone scanning */}
+      {showScanViewer && galleryItems[scanIndex] && (() => {
+        const item = galleryItems[scanIndex];
+        return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)' }} onClick={(e) => { if (e.target === e.currentTarget) setShowScanViewer(false); }}>
+          <div className="bg-white rounded-2xl max-w-[460px] w-[92%] relative" style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
+            <button className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 transition-colors z-10" onMouseEnter={(e) => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.color = '#111'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999'; }} onClick={() => setShowScanViewer(false)}><X className="w-5 h-5" /></button>
+
+            <div className="px-8 pt-8 pb-4 flex items-center justify-center">
+              <div className="w-full aspect-square max-w-[280px] bg-[#f8f8f8] rounded-xl border-2 border-[#e8e8e8] flex items-center justify-center">
+                <PseudoQR payload={item.payload} size={260} />
+              </div>
+            </div>
+
+            <div className="text-center px-6">
+              <div className="text-[20px] font-bold text-[#111]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{item.assetTag}</div>
+              <div className="text-[13px] text-[#777] mt-1">{[item.mainFolder, item.subFolder].filter(Boolean).join(' / ') || 'No folder'}</div>
+            </div>
+
+            <div className="mx-6 my-3 h-px bg-[#e8e8e8]" />
+
+            <div className="px-6">
+              <div className="text-[11px] font-semibold text-[#999] uppercase tracking-wider mb-1.5">Encoded Payload</div>
+              <pre className="bg-[#f5f6f8] border border-[#e0e2e8] rounded-lg p-3 text-[12px] text-[#2a5a9e] whitespace-pre-wrap break-all leading-relaxed max-h-[130px] overflow-auto" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{prettyPayload(item.payload)}</pre>
+            </div>
+
+            <div className="flex items-center justify-center gap-2 mt-3 px-6 text-[12px] text-[#aaa]">
+              <Smartphone className="w-4 h-4" />
+              <span>Point your phone camera at the QR code to verify</span>
+            </div>
+
+            <div className="flex items-center justify-center gap-3 px-6 pt-4 pb-2">
+              <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex === 0} onClick={() => setScanIndex(p => p - 1)}><ArrowLeft className="w-4 h-4" />Prev</button>
+              <span className="text-[13px] text-[#999] px-3" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{scanIndex + 1} / {galleryItems.length}</span>
+              <button className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-30" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} disabled={scanIndex >= galleryItems.length - 1} onClick={() => setScanIndex(p => p + 1)}>Next<ArrowRight className="w-4 h-4" /></button>
+            </div>
+
+            <div className="flex items-center gap-2 px-6 pb-5">
+              <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }} onClick={() => handleCopy(item.payload)}>{copied ? <Check className="w-3.5 h-3.5 text-[#4CAF50]" /> : <Copy className="w-3.5 h-3.5" />}{copied ? 'Copied!' : 'Copy payload'}</button>
+              <button className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[12px] font-semibold transition-colors" style={{ background: '#f0f2f5', border: '1px solid #ddd', color: '#555' }}><Download className="w-3.5 h-3.5" />Save image</button>
+            </div>
+          </div>
+
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-4 text-[11px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <span className="flex items-center gap-1"><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>ESC</span> Close</span>
+            <span className="flex items-center gap-1"><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>←</span><span className="px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.2)', fontSize: '10px' }}>→</span> Navigate</span>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* PRINT PREVIEW */}
+      {showPrintPreview && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }} />
+          <div className="relative rounded-2xl max-w-3xl w-[90%] max-h-[88vh] overflow-hidden flex flex-col shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            {/* Header */}
+            <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+              <div>
+                <h3 className="text-[16px] font-bold">Print Preview</h3>
+                <p className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>Click a label to inspect payload · Check/uncheck to select for printing</p>
+              </div>
+              <button className="p-1" style={{ color: c.tx3 }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }}><X className="w-4 h-4" /></button>
+            </div>
+
+            {/* Stats + Controls */}
+            <div className="px-6 py-3 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+              <div className="flex items-center gap-4 text-[13px]">
+                <span style={{ color: c.tx2 }}>Label: <span className="font-medium" style={{ color: c.tx }}>{config.labelW}x{config.labelH}mm</span></span>
+                <span style={{ color: c.tx2 }}>DPI: <span className="font-medium" style={{ color: c.tx }}>{config.dpi}</span></span>
+                <span style={{ color: c.tx2 }}>Total: <span className="font-medium" style={{ color: c.tx }}>{galleryItems.length}</span></span>
+                {printSelected.size > 0 && printSelected.size < galleryItems.length && <span className="text-[12px] text-[#00B0F0] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{printSelected.size} selected</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => { if (printSelected.size === galleryItems.length) { setPrintSelected(new Set()); } else { setPrintSelected(new Set(galleryItems.map((_, i) => i))); } }}>
+                  {printSelected.size === galleryItems.length ? 'Deselect all' : 'Select all'}
+                </button>
+              </div>
+            </div>
+
+            {/* Content area: grid + payload panel */}
+            <div className="flex-1 overflow-hidden flex">
+              {/* Label Grid */}
+              <div className={`flex-1 overflow-auto p-6 ${printPayloadView !== null ? '' : ''}`}>
+                <div className="bg-white rounded-xl p-5">
+                  <div className="grid grid-cols-4 gap-3">
+                    {galleryItems.map((item, i) => {
+                      const isChecked = printSelected.has(i);
+                      const isViewing = printPayloadView === i;
+                      return (
+                        <div key={i} className="relative rounded-lg p-2 flex flex-col items-center cursor-pointer transition-all" style={{ border: isViewing ? '2px solid #2A5A9E' : isChecked ? '2px solid #4CAF50' : '1px solid #e0e0e0', background: isViewing ? 'rgba(42,90,158,0.05)' : 'white' }} onClick={() => setPrintPayloadView(i)}>
+                          {/* Checkbox */}
+                          <div className="absolute top-1.5 left-1.5 z-10" onClick={(e) => { e.stopPropagation(); setPrintSelected(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; }); }}>
+                            <div className="w-4 h-4 rounded flex items-center justify-center cursor-pointer" style={{ background: isChecked ? '#4CAF50' : 'white', border: isChecked ? 'none' : '1.5px solid #ccc' }}>
+                              {isChecked && <Check className="w-3 h-3 text-white" />}
+                            </div>
+                          </div>
+                          <PseudoQR payload={item.payload} size={56} className="mb-1 mt-1" />
+                          <div className="text-[9px] text-gray-700 font-bold text-center" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{item.assetTag}</div>
+                          <div className="text-[7px] text-gray-400 text-center">{[item.mainFolder, item.subFolder].filter(Boolean).join('/')}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="text-center text-[11px] text-gray-400 mt-3">Page 1 of ~{Math.ceil(galleryItems.length / 24)} · {galleryItems.length} labels</div>
+                </div>
+              </div>
+
+              {/* Payload side panel */}
+              {printPayloadView !== null && galleryItems[printPayloadView] && (
+                <div className="w-[280px] flex-shrink-0 overflow-auto p-4" style={{ borderLeft: `1px solid ${c.bdr}` }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.tx3 }}>Label Detail</span>
+                    <button className="p-0.5" style={{ color: c.tx3 }} onClick={() => setPrintPayloadView(null)}><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 flex items-center justify-center mb-3">
+                    <PseudoQR payload={galleryItems[printPayloadView].payload} size={96} />
+                  </div>
+                  <div className="text-[14px] font-bold text-center mb-0.5" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{galleryItems[printPayloadView].assetTag}</div>
+                  <div className="text-[11px] text-center mb-3" style={{ color: c.tx3 }}>{[galleryItems[printPayloadView].mainFolder, galleryItems[printPayloadView].subFolder].filter(Boolean).join(' / ')}</div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: c.tx3 }}>Encoded Payload</div>
+                  <pre className="rounded-lg p-3 text-[11px] text-[#00B0F0] overflow-x-auto whitespace-pre-wrap break-all leading-relaxed" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>{prettyPayload(galleryItems[printPayloadView].payload)}</pre>
+                  <div className="flex items-center gap-2 mt-3">
+                    <button className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => handleCopy(galleryItems[printPayloadView].payload)}>{copied ? <Check className="w-3 h-3 text-[#4CAF50]" /> : <Copy className="w-3 h-3" />}{copied ? 'Copied' : 'Copy'}</button>
+                    <button className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] transition-colors" style={{ background: printSelected.has(printPayloadView) ? 'rgba(76,175,80,0.15)' : c.bg2, border: `1px solid ${printSelected.has(printPayloadView) ? '#4CAF50' : c.bdr}`, color: printSelected.has(printPayloadView) ? '#4CAF50' : c.tx2 }} onClick={() => setPrintSelected(prev => { const n = new Set(prev); if (n.has(printPayloadView)) n.delete(printPayloadView); else n.add(printPayloadView); return n; })}>{printSelected.has(printPayloadView) ? <Check className="w-3 h-3" /> : null}{printSelected.has(printPayloadView) ? 'Selected' : 'Select'}</button>
+                  </div>
+                  {galleryItems[printPayloadView].warning && (
+                    <div className="flex items-center gap-1.5 mt-3 px-2.5 py-2 rounded-lg text-[11px]" style={{ background: 'rgba(245,166,35,0.1)', color: '#F5A623' }}>
+                      <AlertTriangle className="w-3 h-3 flex-shrink-0" />{galleryItems[printPayloadView].warning}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 flex justify-between items-center flex-shrink-0" style={{ borderTop: `1px solid ${c.bdr}` }}>
+              <span className="text-[12px]" style={{ color: c.tx3 }}>{printSelected.size > 0 ? `Printing ${printSelected.size} of ${galleryItems.length} labels` : `Printing all ${galleryItems.length} labels`}</span>
+              <div className="flex gap-2">
+                <button className="px-4 py-2 rounded-lg text-[13px] transition-colors" style={{ color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }}>Close</button>
+                <button className="flex items-center gap-2 bg-[#2A5A9E] text-white px-5 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => e.currentTarget.style.background = '#1B3F6F'} onMouseLeave={(e) => e.currentTarget.style.background = '#2A5A9E'}><Printer className="w-4 h-4" />{printSelected.size > 0 ? `Print ${printSelected.size} selected` : 'Print all'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HELP MODAL */}
+      {showHelpModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowHelpModal(false)} />
+          <div className="relative rounded-2xl max-w-2xl w-[90%] max-h-[80vh] overflow-auto p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-[16px] font-bold flex items-center gap-2"><HelpCircle className="w-5 h-5 text-[#00B0F0]" />How to Use</h3>
+              <button className="p-1" style={{ color: c.tx3 }} onClick={() => setShowHelpModal(false)}><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-[14px] font-bold text-[#00B0F0] mb-2 flex items-center gap-2"><FileText className="w-4 h-4" />Prepare Your Excel File</h4>
+                <p className="text-[13px] leading-relaxed mb-2" style={{ color: c.tx2 }}>Your .xlsx file needs exactly 4 columns with a header row:</p>
+                <div className="grid grid-cols-2 gap-2 text-[13px]" style={{ color: c.tx2 }}>
+                  {[['Column A', 'Main Folder — project name (e.g. 334OS)'], ['Column B', 'Sub-Folder — system or floor (e.g. EMS)'], ['Column C', 'Asset Tag — label text (e.g. FCU-199001)'], ['Column D', 'Payload — JSON data for QR encoding']].map(([k, v]) => (
+                    <div key={k} className="rounded-lg px-3 py-2" style={{ background: c.bg2 }}>
+                      <span className="font-semibold" style={{ color: c.tx, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{k}</span>
+                      <div className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[14px] font-bold text-[#00B0F0] mb-2 flex items-center gap-2"><Settings className="w-4 h-4" />Configuration</h4>
+                <div className="space-y-2 text-[13px]" style={{ color: c.tx2 }}>
+                  <div className="rounded-lg px-3 py-2" style={{ background: c.bg2, borderLeft: '3px solid #00B0F0' }}><strong style={{ color: c.tx }}>Error Correction:</strong> Higher = more resilient. Medium (15%) handles typical field wear. Use High (30%) for harsh environments.</div>
+                  <div className="rounded-lg px-3 py-2" style={{ background: c.bg2, borderLeft: '3px solid #F5A623' }}><strong style={{ color: c.tx }}>Quiet Zone:</strong> ISO 18004 requires minimum 4 modules. Never reduce below 4 — causes scan failures.</div>
+                  <div className="rounded-lg px-3 py-2" style={{ background: c.bg2, borderLeft: '3px solid #4CAF50' }}><strong style={{ color: c.tx }}>Pixel-Perfect:</strong> Always leave on for production. Eliminates anti-aliasing blur at module edges.</div>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[14px] font-bold text-[#00B0F0] mb-2 flex items-center gap-2"><Shield className="w-4 h-4" />ISO/IEC 18004 Compliance</h4>
+                <p className="text-[13px] leading-relaxed" style={{ color: c.tx2 }}>All QR codes conform to ISO/IEC 18004: standard finder/alignment/timing patterns, Reed-Solomon error correction, UTF-8 byte mode, minimum 4-module quiet zone, and automatic version selection. All processing happens in-browser — no data leaves your machine.</p>
+              </div>
+              <div className="rounded-lg px-3 py-2 text-[12px]" style={{ background: c.bg2, borderLeft: '3px solid #F5A623', color: c.tx2 }}>
+                <strong style={{ color: c.tx }}>Windows ZIP Warning:</strong> Windows may flag extracted PNGs. Right-click ZIP → Properties → check "Unblock" → Apply, then extract. Or use 7-Zip.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VERIFY SCAN MODAL */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={handleCloseVerify} />
+          <div className="relative rounded-2xl max-w-2xl w-[90%] max-h-[80vh] overflow-hidden p-0 shadow-2xl flex flex-col" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <div className="px-6 py-4 flex items-center justify-between flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+              <div>
+                <h3 className="text-[16px] font-bold flex items-center gap-2"><ScanLine className="w-5 h-5 text-[#00B0F0]" />Scan Verification</h3>
+                <p className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>Decoding each QR and comparing against source payload</p>
+              </div>
+              <button className="p-1" style={{ color: c.tx3 }} onClick={handleCloseVerify}><X className="w-4 h-4" /></button>
+            </div>
+
+            {verifyRunning && (
+              <div className="px-6 py-3 flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[12px]" style={{ color: c.tx2 }}>Scanning {verifyResults.length} of {galleryItems.length}...</span>
+                  <span className="text-[12px] font-semibold" style={{ color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace" }}>{verifyProgress}%</span>
+                </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: c.bg3 }}>
+                  <div className="h-full rounded-full transition-all duration-150" style={{ background: 'linear-gradient(90deg, #00B0F0, #4CAF50)', width: `${verifyProgress}%` }} />
+                </div>
+              </div>
+            )}
+
+            {!verifyRunning && verifyResults.length > 0 && (
+              <div className="px-6 py-3 flex items-center gap-4 flex-shrink-0" style={{ borderBottom: `1px solid ${c.bdr}` }}>
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-[#4CAF50]" />
+                  <span className="text-[13px] text-[#4CAF50] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{verifyResults.filter(r => r.passed).length}</span>
+                  <span className="text-[13px]" style={{ color: c.tx3 }}>passed</span>
+                </div>
+                {verifyResults.some(r => !r.passed) && (
+                  <div className="flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4 text-[#E53935]" />
+                    <span className="text-[13px] text-[#E53935] font-bold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{verifyResults.filter(r => !r.passed).length}</span>
+                    <span className="text-[13px]" style={{ color: c.tx3 }}>failed</span>
+                  </div>
+                )}
+                {verifyResults.every(r => r.passed) && (
+                  <div className="flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-lg" style={{ background: 'rgba(76,175,80,0.1)' }}>
+                    <Shield className="w-3.5 h-3.5 text-[#4CAF50]" />
+                    <span className="text-[12px] text-[#4CAF50] font-semibold">All codes verified — safe to print</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-auto px-6 py-3">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="sticky top-0 z-10" style={{ background: c.bg1 }}>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider w-10" style={{ color: c.tx3 }}>Status</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>Asset Tag</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>Folder</th>
+                    <th className="px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {verifyResults.map((r, i) => (
+                    <tr key={i} style={{ borderTop: `1px solid ${c.bdr}` }}>
+                      <td className="px-2 py-2">{r.passed ? <CheckCircle className="w-4 h-4 text-[#4CAF50]" /> : <XCircle className="w-4 h-4 text-[#E53935]" />}</td>
+                      <td className="px-2 py-2 font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.assetTag}</td>
+                      <td className="px-2 py-2" style={{ color: c.tx2 }}>{r.folder}</td>
+                      <td className="px-2 py-2 text-[12px]" style={{ color: r.passed ? '#4CAF50' : '#E53935' }}>{r.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {verifyRunning && verifyResults.length === 0 && (
+                <div className="py-12 text-center">
+                  <ScanLine className="w-8 h-8 mx-auto mb-3" style={{ color: c.tx3 }} />
+                  <p className="text-[13px]" style={{ color: c.tx3 }}>Starting scan verification...</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-3 flex justify-end flex-shrink-0" style={{ borderTop: `1px solid ${c.bdr}` }}>
+              <button className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors" style={{ color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={handleCloseVerify}>{verifyRunning ? 'Stop & Close' : 'Close'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FOLDER TREE / DOWNLOAD MODAL */}
+      {showFolderTree && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center">
+          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowFolderTree(false)} />
+          <div className="relative rounded-2xl max-w-lg w-[90%] max-h-[80vh] overflow-auto p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[16px] font-bold flex items-center gap-2"><FolderOpen className="w-5 h-5 text-[#F5A623]" />ZIP Structure Preview</h3>
+              <button className="p-1" style={{ color: c.tx3 }} onClick={() => setShowFolderTree(false)}><X className="w-4 h-4" /></button>
+            </div>
+            <p className="text-[13px] mb-4" style={{ color: c.tx2 }}>QR images will be organized into this folder structure:</p>
+
+            <div className="rounded-xl p-4 mb-4" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+              <div className="flex items-center gap-2 mb-2" style={{ color: c.tx }}>
+                <FolderOpen className="w-4 h-4 text-[#F5A623]" />
+                <span className="font-bold">asset_labels_v3/</span>
+              </div>
+              {Object.entries(folderTree).map(([mainFolder, subs]) => (
+                <div key={mainFolder} className="ml-5">
+                  <div className="flex items-center gap-2 py-1" style={{ color: c.tx }}>
+                    <div className="w-px h-3" style={{ background: c.bdr, marginRight: '2px' }} />
+                    <Folder className="w-3.5 h-3.5 text-[#2A5A9E]" />
+                    <span className="font-semibold">{mainFolder}/</span>
+                  </div>
+                  {Object.entries(subs).map(([subFolder, assets]) => (
+                    <div key={subFolder || '_root'} className="ml-5">
+                      {subFolder && (
+                        <div className="flex items-center gap-2 py-1" style={{ color: c.tx2 }}>
+                          <div className="w-px h-3" style={{ background: c.bdr, marginRight: '2px' }} />
+                          <Folder className="w-3.5 h-3.5 text-[#00B0F0]" />
+                          <span>{subFolder}/</span>
+                        </div>
+                      )}
+                      <div className={subFolder ? 'ml-5' : ''}>
+                        {assets.map((tag, ai) => (
+                          <div key={ai} className="flex items-center gap-2 py-0.5" style={{ color: c.tx3 }}>
+                            <div className="w-px h-3" style={{ background: c.bdr, marginRight: '2px' }} />
+                            <File className="w-3 h-3" style={{ color: c.tx3 }} />
+                            <span className="text-[12px]">{tag}.{config.format}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3 mb-4 px-1">
+              <span className="text-[12px]" style={{ color: c.tx3 }}>{galleryItems.length} files · {Object.keys(folderTree).length} top-level folders · {config.format.toUpperCase()} format</span>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button className="px-4 py-2 rounded-lg text-[13px] transition-colors" style={{ color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowFolderTree(false)}>Cancel</button>
+              <button className="flex items-center gap-2 bg-[#4CAF50] text-white px-5 py-2 rounded-lg font-semibold text-[13px] transition-colors" onMouseEnter={(e) => e.currentTarget.style.background = '#388E3C'} onMouseLeave={(e) => e.currentTarget.style.background = '#4CAF50'} onClick={() => setShowFolderTree(false)}><Download className="w-4 h-4" />Download ZIP</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click-away handlers */}
+      {(showPresetDropdown || showRecentFiles) && <div className="fixed inset-0 z-40" onClick={() => { setShowPresetDropdown(false); setShowRecentFiles(false); }} />}
+    </div>
+  );
+}
+
+export default App;

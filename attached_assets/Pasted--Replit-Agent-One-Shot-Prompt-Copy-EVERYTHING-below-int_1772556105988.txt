@@ -1,0 +1,189 @@
+
+
+# Replit Agent — One-Shot Prompt
+
+Copy EVERYTHING below into Replit Agent along with the App.jsx prototype code. That's all you need — no other files.
+
+---
+
+## PROMPT TO PASTE INTO REPLIT AGENT:
+
+```
+I need you to build a complete production Electracom QR Code Generator web app.
+
+I have one file: App.jsx — a complete React prototype with all screens, modals, interactions, themes, and keyboard shortcuts. This is the DESIGN SOURCE OF TRUTH. Keep every pixel of this UI. Your job is to wire real functionality into the existing placeholder/simulated logic.
+
+## PROJECT SETUP
+
+Create a Vite + React + Tailwind CSS project:
+
+1. Initialize: `npm create vite@latest electracom-qr -- --template react`
+2. Install dependencies:
+```bash
+npm install lucide-react qrcode xlsx jszip file-saver jsqr recharts
+npm install -D tailwindcss @tailwindcss/vite
+```
+
+3. File structure:
+```
+electracom-qr/
+├── index.html          (add Google Fonts link for DM Sans + JetBrains Mono)
+├── package.json
+├── vite.config.js
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx         ← Paste the PROTOTYPE code here as starting point
+│   ├── App.css         ← Tailwind imports + custom scrollbar styles
+│   ├── lib/
+│   │   ├── qr-renderer.js   ← Real QR generation using qrcode package
+│   │   ├── file-parser.js   ← XLSX/CSV parsing using xlsx package
+│   │   ├── zip-exporter.js  ← ZIP creation using jszip + file-saver
+│   │   ├── print-labels.js  ← Print window with label layout
+│   │   └── qr-verifier.js   ← QR decode verification using jsQR
+```
+
+4. In `index.html`, add inside <head>:
+```html
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+```
+
+5. In `vite.config.js`:
+```js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+})
+```
+
+6. In `src/App.css`:
+```css
+@import "tailwindcss";
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #555; }
+```
+
+## WHAT TO CHANGE IN THE PROTOTYPE
+
+The prototype has these simulated/placeholder items. Replace each one:
+
+### 1. Replace PseudoQR component → Real QR generation
+- Remove the `PseudoQR` component and `hashStr` function entirely
+- Create `src/lib/qr-renderer.js` with an async `renderQR(payload, config)` function
+- Use the `qrcode` npm package to generate real ISO/IEC 18004 QR codes on canvas
+- Config controls: error correction level (L/M/Q/H), module size (px), quiet zone (modules)
+- After QR generation, draw the asset tag text (bold, centered below QR) and folder path text (smaller, gray) on the same canvas
+- Enable pixel-perfect mode: set `imageSmoothingEnabled = false` when config.pixelPerfect is true
+- Store generated images as `{ dataURL, width, height }` per row in state
+- Each gallery card, scan viewer, print preview, and config preview should display these real QR dataURLs via `<img src={dataURL} />`
+
+### 2. Replace handleLoadDemo() → Real file upload
+- Create `src/lib/file-parser.js` with a `parseFile(arrayBuffer)` function
+- Use `XLSX.read(arrayBuffer, { type: 'array' })` to parse Excel files
+- Extract 4 columns from the first sheet: Column A = mainFolder, B = subFolder, C = assetTag, D = payload
+- Skip header row (row 1), trim whitespace, handle empty cells
+- Wire drag-and-drop events on the drop zone (onDragOver, onDragLeave, onDrop)
+- Wire a hidden `<input type="file" accept=".xlsx,.xls,.csv">` for click-to-browse
+- Pass parsed rows through existing `validateRows()` function already in the prototype
+- Remove MOCK_ROWS constant — use real parsed data
+- Keep RECENT_FILES as mock for now (production would use localStorage)
+
+### 3. Replace simulated generation → Real batch QR rendering
+- In `handleGenerate()`, replace the `setInterval` simulation with an actual async loop
+- For each selected row, call `renderQR(row.payload, config)` to generate real QR canvas
+- Convert canvas to dataURL and store in a `generatedImages` state array
+- Update progress bar with real progress (current/total)
+- Add try/catch per row — failed rows should be logged but not stop the batch
+- Use `await new Promise(r => setTimeout(r, 0))` between rows to keep UI responsive
+
+### 4. Replace folder tree download → Real ZIP export
+- Create `src/lib/zip-exporter.js` with async `exportToZip(generatedImages, config)` function
+- Use `JSZip` to create ZIP, `FileSaver.saveAs()` to trigger download
+- Build folder path per row: if both mainFolder + subFolder → `MainFolder/SubFolder/`, if one → that name, if neither → `Outputted QR Codes/`
+- Filename: sanitized assetTag + `.png` based on config.format
+- Extract base64 from dataURL, add to zip with `{ base64: true }`
+- Name the ZIP: `Electracom_QR_Codes_YYYY-MM-DD.zip`
+
+### 5. Replace print button → Real print
+- Create `src/lib/print-labels.js` with `printLabels(generatedImages, config, printSelectedSet)` function
+- Open `window.open('', '_blank')` and write a print-ready HTML document
+- CSS: flex-wrap grid of labels, each sized to config.labelW × labelH mm using `@page` + mm units, `page-break-inside: avoid`
+- Each label shows QR image via `<img src="dataURL" />` with asset tag below
+- IMPORTANT: If printSelectedSet has entries, only print those indices. If empty, print all.
+- Auto-trigger `window.print()` after 600ms delay for images to load
+
+### 6. Replace verify simulation → Real QR decode
+- Create `src/lib/qr-verifier.js` with async `verifyQR(imageDataURL, expectedPayload)` function
+- Load the dataURL into an Image, draw onto a temp canvas, extract ImageData
+- Use `jsQR(imageData.data, width, height)` to decode
+- Compare decoded text to original source payload (exact string match)
+- Return `{ passed: boolean, decoded: string, detail: string }`
+- Detail: 'Payload matches source' on pass, or 'Decoded differs — expected X got Y' on fail
+
+### 7. Add localStorage for theme
+- On theme change, save to localStorage: `localStorage.setItem('ec-theme', dark ? 'dark' : 'light')`
+- On app load, read from localStorage first, then fall back to system preference
+
+### 8. Wire copy & save buttons
+- Copy payload: `navigator.clipboard.writeText(payload)`
+- Save image: convert canvas to blob → `saveAs(blob, 'assetTag.png')` using file-saver
+
+### 9. Wire drag and drop on the upload zone
+- Add `onDragOver`, `onDragLeave`, `onDrop` handlers to the drop zone div
+- On drop, extract file and pass to file parser
+- Show visual feedback (border color change) during drag
+
+## WHAT NOT TO CHANGE
+
+- The inline style theming system (`c.bg`, `c.tx`, `c.bdr` pattern) — this is intentional, not Tailwind classes for colors
+- The `appState` state machine (empty → loaded → generating → results)
+- Keyboard shortcuts useEffect
+- All modal/overlay structures
+- The Electracom logo URL (keep as-is)
+- The gradient bar at the top
+- All text content, labels, descriptions
+
+## RECENT_FILES
+Keep the RECENT_FILES mock data — in a real production app this would use localStorage to track previously opened files. For now it's cosmetic.
+
+## DEPLOYMENT
+After everything works:
+1. Run `npm run build` to create production build
+2. Deploy using Replit's built-in deployment (Static site or Autoscale)
+3. The app is 100% client-side — no backend needed, no API calls, no database
+4. All data stays in the browser — this is a privacy requirement
+
+## TESTING CHECKLIST
+After building, verify each of these works:
+- [ ] Drop .xlsx file → table renders with real data + validation
+- [ ] Click payload cell → modal shows formatted JSON
+- [ ] Select 3 rows → Generate button says "Generate 3 selected"
+- [ ] Generate → real QR codes appear in gallery (scannable with phone)
+- [ ] Click QR in gallery → scan viewer shows large QR + payload + prev/next
+- [ ] Phone camera pointed at screen QR → shows JSON payload
+- [ ] Arrow keys navigate scan viewer, ESC closes
+- [ ] Verify → decodes each QR → shows real pass/fail
+- [ ] Download ZIP → real ZIP file with correct folder structure
+- [ ] Print → only selected labels print (or all if none selected)
+- [ ] Theme toggle persists on page reload
+- [ ] Switch preset → config live preview label size changes
+- [ ] Dark mode + light mode both render correctly
+- [ ] Folder tree preview matches actual ZIP structure
+```
+
+---
+
+## ABOUT HOSTING
+
+**Replit handles hosting automatically.** Once you deploy:
+- Replit gives you a `.replit.app` URL  
+- It's a static site (no server needed) — Replit's free tier works fine
+- If you want a custom domain (e.g. `qr.electracom.com`), go to Replit Deployments → Custom Domain → add your DNS CNAME record
+
+**No backend, no database, no environment variables needed.** The entire app runs in the browser.
+
