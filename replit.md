@@ -11,7 +11,7 @@ Production-ready QR code label generator for asset management. Generates ISO/IEC
 
 ## Key Libraries
 - `qrcode` - ISO/IEC 18004 compliant QR generation
-- `xlsx` - Excel/CSV file parsing
+- `exceljs` - Excel file parsing (replaced `xlsx` due to CVEs)
 - `jszip` + `file-saver` - ZIP export with folder structure
 - `jspdf` - PDF label sheet export
 - `jsqr` - QR code verification/decoding
