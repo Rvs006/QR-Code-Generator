@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export interface ParsedRow {
   mainFolder: string;
@@ -87,17 +87,27 @@ export async function parseFile(file: File): Promise<ParsedRow[]> {
 
 async function parseExcelRaw(file: File): Promise<RawFileData> {
   const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) throw new Error('No sheets found in workbook');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(arrayBuffer);
 
-  const sheet = workbook.Sheets[firstSheetName];
-  const jsonData: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) throw new Error('No sheets found in workbook');
+
+  const jsonData: string[][] = [];
+  worksheet.eachRow({ includeEmpty: false }, (row) => {
+    const values = (row.values as any[]).slice(1).map((cell: any) => {
+      if (cell === null || cell === undefined) return '';
+      if (typeof cell === 'object' && cell.text !== undefined) return String(cell.text);
+      if (typeof cell === 'object' && cell.result !== undefined) return String(cell.result);
+      return String(cell);
+    });
+    jsonData.push(values);
+  });
 
   if (jsonData.length < 2) throw new Error('File must have at least a header row and one data row');
 
-  const headers = (jsonData[0] || []).map((h: any) => String(h || '').trim());
-  const rawRows = jsonData.slice(1).filter(row => row && row.length > 0).map(row => row.map((cell: any) => String(cell || '')));
+  const headers = jsonData[0].map(h => h.trim());
+  const rawRows = jsonData.slice(1).filter(row => row && row.length > 0);
 
   return { headers, rawRows };
 }
