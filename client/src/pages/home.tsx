@@ -743,7 +743,7 @@ export default function Home() {
       <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
         <div className="flex items-center gap-2 min-w-0 cursor-pointer" data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home">
           <AppIcon size={isMobile ? 32 : 40} isDark={d} />
-          <span className={`font-bold ${isMobile ? 'text-[14px]' : 'text-[16px]'} tracking-wide`} style={{ color: c.tx }}>Electracom QR</span>
+          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-6' : 'h-8'} object-contain flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
         </div>
 
         <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
@@ -858,7 +858,6 @@ export default function Home() {
 
         {appState === 'empty' && (
           <div className={`flex flex-col items-center ${isMobile ? 'pt-4' : 'pt-16'}`}>
-            <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-14 mb-3' : 'h-20 mb-5'} object-contain`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
             <h1 className={`${isMobile ? 'text-lg' : 'text-2xl'} font-bold mb-1`} data-testid="text-heading">QR Code Label Generator</h1>
             <p className={`${isMobile ? 'text-[12px]' : 'text-[15px]'} mb-5 text-center max-w-md px-2`} style={{ color: c.tx2 }}>Upload your asset data to generate ISO/IEC 18004 compliant QR codes for physical labels.</p>
 
