@@ -743,7 +743,7 @@ export default function Home() {
       <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
         <div className="flex items-center gap-2 min-w-0 cursor-pointer" data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home">
           <AppIcon size={isMobile ? 32 : 40} isDark={d} />
-          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-6' : 'h-8'} object-contain flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
+          <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-9' : 'h-12'} object-contain flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
         </div>
 
         <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
