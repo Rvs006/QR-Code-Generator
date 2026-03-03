@@ -1,0 +1,132 @@
+# Fix: Auto-Map Excel Columns by Header Name (Not Position)
+
+## The Bug
+
+Currently, when a user uploads an Excel/CSV file, the column mapping screen assigns columns **by position** (column 1 → Asset Tag, column 2 → Main Folder, etc.). This breaks when the user's file has columns in a different order. For example, if their file has:
+
+- Column 1: "Main Folder Name"
+- Column 2: "Sub-Folder Name"
+- Column 3: "Asset Tag"
+- Column 4: "Payload / Machine-readable Name"
+
+...the app incorrectly maps "Main Folder Name" as the Asset Tag, causing thousands of false "duplicate" warnings (because project names like "334OS" repeat across rows, but actual asset tags like "FCU-199001" are unique).
+
+## The Fix
+
+When a file is uploaded and headers are read, **auto-detect which column maps to which field by matching keywords in the header text** — regardless of column position. Only fall back to the manual mapping screen if headers can't be confidently matched.
+
+### Keyword matching logic to implement:
+
+```javascript
+// Define keyword patterns for each app field (case-insensitive matching)
+const FIELD_MATCHERS = {
+  assetTag: {
+    // Must match "asset tag" or similar — but NOT "main folder" or "sub-folder"
+    keywords: ['asset tag', 'asset_tag', 'asset name', 'qr label', 'human-readable', 'human readable'],
+    // Negative keywords — if these appear, it's NOT this field
+    exclude: ['folder', 'sub-folder', 'payload', 'machine']
+  },
+  mainFolder: {
+    keywords: ['main folder', 'project name', 'project', 'building'],
+    exclude: ['sub-folder', 'sub folder', 'asset tag']
+  },
+  subFolder: {
+    keywords: ['sub-folder', 'sub folder', 'subfolder', 'system', 'level'],
+    exclude: ['main folder', 'project name', 'asset tag']
+  },
+  payload: {
+    keywords: ['payload', 'machine-readable', 'machine readable', 'qr code data', 'qr payload', 'embedded'],
+    exclude: ['asset tag', 'folder']
+  }
+};
+
+function autoMapColumns(headerRow) {
+  const mapping = {};
+  const usedColumns = new Set();
+
+  // Normalize headers to lowercase for matching
+  const headers = headerRow.map(h => (h || '').toString().toLowerCase().trim());
+
+  for (const [field, matcher] of Object.entries(FIELD_MATCHERS)) {
+    let bestMatch = null;
+    let bestScore = 0;
+
+    headers.forEach((header, colIndex) => {
+      if (usedColumns.has(colIndex)) return; // already assigned
+
+      // Check exclude list first
+      const isExcluded = matcher.exclude.some(ex => header.includes(ex));
+      if (isExcluded) return;
+
+      // Score based on keyword matches
+      const score = matcher.keywords.reduce((s, kw) => {
+        return s + (header.includes(kw) ? kw.length : 0); // longer match = higher confidence
+      }, 0);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = colIndex;
+      }
+    });
+
+    if (bestMatch !== null && bestScore > 0) {
+      mapping[field] = bestMatch;
+      usedColumns.add(bestMatch);
+    }
+  }
+
+  return mapping;
+}
+```
+
+### How to integrate:
+
+1. **After reading the file headers**, call `autoMapColumns(headers)` to get the suggested mapping.
+2. **If all 4 fields are confidently mapped** (especially `assetTag`), pre-populate the dropdowns on the mapping screen with the correct columns.
+3. **If `assetTag` can't be matched**, show the mapping screen with no pre-selection and let the user choose manually.
+4. **Always show the mapping screen** so the user can verify/override, but the dropdowns should already be correctly pre-filled.
+
+### Test cases to verify the fix:
+
+| Column order in file | Expected Asset Tag mapping |
+|---|---|
+| Col1: Main Folder, Col2: Sub-Folder, Col3: Asset Tag, Col4: Payload | → Column 3 |
+| Col1: Asset Tag, Col2: Main Folder, Col3: Sub-Folder, Col4: Payload | → Column 1 |
+| Col1: Payload, Col2: Asset Tag, Col3: Main Folder, Col4: Sub-Folder | → Column 2 |
+| Col1: "Tags", Col2: "Project", Col3: "System", Col4: "Data" | → Column 1 (partial match on "tag") |
+| Col1: "A", Col2: "B", Col3: "C", Col4: "D" | → No match, manual mapping required |
+
+### Also fix: Duplicate detection should skip empty/null values
+
+While you're at it, the duplicate detection logic should **exclude null/empty/whitespace-only values** when checking for duplicate Asset Tags. Currently, if 500 rows have a blank Asset Tag, they all get flagged as "duplicates" of each other. Fix:
+
+```javascript
+// When checking for duplicates, filter out empty values FIRST
+function findDuplicateAssetTags(rows, assetTagColIndex) {
+  const tagCounts = {};
+
+  rows.forEach((row, index) => {
+    const tag = (row[assetTagColIndex] || '').toString().trim();
+    if (!tag) return; // Skip empty/null/whitespace — these are NOT duplicates
+
+    if (!tagCounts[tag]) tagCounts[tag] = [];
+    tagCounts[tag].push(index);
+  });
+
+  // Only return tags that genuinely appear more than once
+  const duplicates = {};
+  for (const [tag, indices] of Object.entries(tagCounts)) {
+    if (indices.length > 1) {
+      duplicates[tag] = indices;
+    }
+  }
+
+  return duplicates;
+}
+```
+
+## Summary of changes needed:
+1. **Auto-map columns by header keyword matching**, not by position
+2. **Pre-fill the mapping dropdowns** with the detected mapping
+3. **Skip empty/null values** in duplicate detection
+4. **Test with the attached file** `Clean_3000_Assets_Original_Format.xlsx` which has columns in the order: Main Folder → Sub-Folder → Asset Tag → Payload (Asset Tag is column 3, not column 1)
