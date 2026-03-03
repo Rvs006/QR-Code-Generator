@@ -2,6 +2,15 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import type { GeneratedQR } from './qr-renderer';
 
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
 export async function exportToZip(images: GeneratedQR[]): Promise<void> {
   const zip = new JSZip();
 
@@ -19,14 +28,20 @@ export async function exportToZip(images: GeneratedQR[]): Promise<void> {
 
     const filename = `${sanitize(img.assetTag)}.png`;
     const base64 = img.dataURL.split(',')[1];
-    zip.file(folderPath + filename, base64, { base64: true });
+    const binaryData = base64ToUint8Array(base64);
+    zip.file(folderPath + filename, binaryData, { binary: true });
   }
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
   const zipName = `Electracom_QR_Codes_${dateStr}.zip`;
 
-  const blob = await zip.generateAsync({ type: 'blob' });
+  const blob = await zip.generateAsync({
+    type: 'blob',
+    mimeType: 'application/zip',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
   saveAs(blob, zipName);
 }
 
