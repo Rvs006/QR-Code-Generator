@@ -1442,9 +1442,11 @@ export default function Home() {
                 {!isMobile && <p className="text-[12px] mt-0.5" style={{ color: c.tx3 }}>Click a label to inspect payload · Check/uncheck to select for printing</p>}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                <button data-testid="button-print-select-all" className={`${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} rounded-lg text-[12px] font-medium transition-colors`} style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setPrintSelected(new Set(generatedImages.map((_, i) => i)))}>Select All</button>
+                <button data-testid="button-print-deselect-all" className={`${isMobile ? 'px-2 py-1' : 'px-3 py-1.5'} rounded-lg text-[12px] font-medium transition-colors`} style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setPrintSelected(new Set())}>Deselect All</button>
                 {!isMobile && <span className="text-[12px]" style={{ color: c.tx3 }}>{printSelected.size > 0 ? `${printSelected.size} selected` : 'All labels'}</span>}
                 <button data-testid="button-print-execute" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px]`} onClick={handlePrint}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
-                <button className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }}><X className="w-4 h-4" /></button>
+                <button className="p-1.5 rounded-lg" aria-label="Close print preview" style={{ color: c.tx3 }} onClick={() => { setShowPrintPreview(false); setPrintPayloadView(null); }}><X className="w-4 h-4" /></button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
