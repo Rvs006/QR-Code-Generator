@@ -8,6 +8,8 @@ export interface VerifyResult {
   decodedMatch: boolean;
   detail: string;
   decoded?: string;
+  dataWarning?: string | null;
+  dataValid?: boolean;
 }
 
 export async function verifyQR(

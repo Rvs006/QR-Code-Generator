@@ -713,13 +713,47 @@ export default function Home() {
     setVerifyProgress(0);
     setVerifyResults([]);
 
-    const items = generatedImages.filter(img => img.dataURL);
+    const skippedRows = rows.filter((r, idx) =>
+      !r.valid && (selectedRows.size === 0 || selectedRows.has(idx))
+    );
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
+    const itemsWithIdx = generatedImages
+      .map((img, idx) => ({ img, origIdx: idx }))
+      .filter(({ img }) => img.dataURL);
+
+    const totalItems = itemsWithIdx.length + skippedRows.length;
+
+    for (let i = 0; i < itemsWithIdx.length; i++) {
+      const { img: item, origIdx } = itemsWithIdx[i];
       const result = await verifyQR(item.qrOnlyDataURL, item.payload, item.assetTag, item.mainFolder, item.subFolder);
+      const rowIdx = generatedIndices[origIdx];
+      const sourceRow = rowIdx != null ? rows[rowIdx] : undefined;
+      if (sourceRow) {
+        result.dataValid = sourceRow.valid;
+        result.dataWarning = sourceRow.warning;
+      } else {
+        result.dataWarning = 'Source row not found';
+        result.dataValid = false;
+      }
       setVerifyResults(prev => [...prev, result]);
-      setVerifyProgress(Math.round(((i + 1) / items.length) * 100));
+      setVerifyProgress(Math.round(((i + 1) / totalItems) * 100));
+      await new Promise(r => setTimeout(r, 50));
+    }
+
+    for (let i = 0; i < skippedRows.length; i++) {
+      const row = skippedRows[i];
+      const skippedResult: VerifyResult = {
+        assetTag: row.assetTag,
+        folder: [row.mainFolder, row.subFolder].filter(Boolean).join('/'),
+        payload: row.payload || '',
+        passed: false,
+        decodedMatch: false,
+        detail: 'Skipped — data validation failed',
+        dataValid: false,
+        dataWarning: row.warning || 'Row has validation errors',
+      };
+      setVerifyResults(prev => [...prev, skippedResult]);
+      setVerifyProgress(Math.round(((itemsWithIdx.length + i + 1) / totalItems) * 100));
       await new Promise(r => setTimeout(r, 50));
     }
 
@@ -1485,23 +1519,35 @@ export default function Home() {
               <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: c.bg3 }}>
                 <div className="h-full rounded-full transition-all duration-150" style={{ background: 'linear-gradient(90deg, #4CAF50, #2A5A9E)', width: `${verifyProgress}%` }} />
               </div>
-              {!verifyRunning && verifyResults.length > 0 && (
-                <div className="flex items-center gap-4 mt-2 text-[12px]">
-                  <span className="text-[#4CAF50]">{verifyResults.filter(r => r.passed).length} passed</span>
-                  <span className="text-[#E53935]">{verifyResults.filter(r => !r.passed).length} failed</span>
-                </div>
-              )}
+              {!verifyRunning && verifyResults.length > 0 && (() => {
+                const clean = verifyResults.filter(r => r.passed && r.dataValid !== false && !r.dataWarning).length;
+                const warnings = verifyResults.filter(r => r.passed && (r.dataValid === false || !!r.dataWarning)).length;
+                const failed = verifyResults.filter(r => !r.passed).length;
+                return (
+                  <div className="flex items-center gap-4 mt-2 text-[12px]">
+                    <span className="text-[#4CAF50]">{clean} passed</span>
+                    {warnings > 0 && <span className="text-[#F5A623]">{warnings} {warnings === 1 ? 'warning' : 'warnings'}</span>}
+                    {failed > 0 && <span className="text-[#E53935]">{failed} failed</span>}
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {verifyResults.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg" style={{ background: r.passed ? 'rgba(76,175,80,0.08)' : 'rgba(229,57,53,0.08)', border: `1px solid ${r.passed ? 'rgba(76,175,80,0.2)' : 'rgba(229,57,53,0.2)'}` }}>
-                  {r.passed ? <CheckCircle className="w-4 h-4 text-[#4CAF50] flex-shrink-0" /> : <XCircle className="w-4 h-4 text-[#E53935] flex-shrink-0" />}
+              {verifyResults.map((r, i) => {
+                const hasDataIssue = r.passed && (r.dataValid === false || !!r.dataWarning);
+                const bgColor = !r.passed ? 'rgba(229,57,53,0.08)' : hasDataIssue ? 'rgba(245,166,35,0.08)' : 'rgba(76,175,80,0.08)';
+                const bdrColor = !r.passed ? 'rgba(229,57,53,0.2)' : hasDataIssue ? 'rgba(245,166,35,0.2)' : 'rgba(76,175,80,0.2)';
+                return (
+                <div key={i} className="flex items-start gap-3 px-3 py-2.5 rounded-lg" style={{ background: bgColor, border: `1px solid ${bdrColor}` }}>
+                  {!r.passed ? <XCircle className="w-4 h-4 text-[#E53935] flex-shrink-0 mt-0.5" /> : hasDataIssue ? <AlertTriangle className="w-4 h-4 text-[#F5A623] flex-shrink-0 mt-0.5" /> : <CheckCircle className="w-4 h-4 text-[#4CAF50] flex-shrink-0 mt-0.5" />}
                   <div className="min-w-0 flex-1">
                     <div className="text-[13px] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.assetTag}</div>
                     <div className="text-[11px]" style={{ color: c.tx3 }}>{r.detail}</div>
+                    {hasDataIssue && <div className="text-[11px] mt-0.5" style={{ color: '#F5A623' }}>{r.dataWarning || (r.dataValid === false ? 'Data validation error' : '')}</div>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
