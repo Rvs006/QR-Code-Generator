@@ -17,9 +17,18 @@ interface RowData extends ParsedRow {
 }
 
 const PRESETS: Record<string, QRConfig & { name: string; desc: string }> = {
-  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true },
-  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 0, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true },
-  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false },
+  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true, paperSize: 'a4' },
+  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 0, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true, paperSize: 'a4' },
+  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false, paperSize: 'a4' },
+};
+
+const PAPER_SIZES: Record<string, { name: string; w: number; h: number }> = {
+  a3: { name: 'A3 (297 × 420 mm)', w: 297, h: 420 },
+  a4: { name: 'A4 (210 × 297 mm)', w: 210, h: 297 },
+  a5: { name: 'A5 (148 × 210 mm)', w: 148, h: 210 },
+  letter: { name: 'Letter (216 × 279 mm)', w: 216, h: 279 },
+  legal: { name: 'Legal (216 × 356 mm)', w: 216, h: 356 },
+  tabloid: { name: 'Tabloid (279 × 432 mm)', w: 279, h: 432 },
 };
 
 const EC_LABELS: Record<string, string> = { L: 'Low (7%)', M: 'Medium (15%)', Q: 'Quartile (25%)', H: 'High (30%)' };
@@ -801,7 +810,7 @@ export default function Home() {
                 <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${c.bdr}` }}>
                   <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.tx3 }}>Recent Files</span>
                   {recentFiles.length > 0 && (
-                    <button data-testid="button-clear-recent" className="text-[11px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#E53935')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={() => { clearAllRecentFiles(); setRecentFiles([]); setRecentToast('All sessions cleared'); setTimeout(() => setRecentToast(null), 2500); }}>Clear all</button>
+                    <button data-testid="button-clear-recent" className="text-[11px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#E53935')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={() => { clearAllRecentFiles(); setRecentFiles([]); setShowRecentFiles(false); setRecentToast('All sessions cleared'); setTimeout(() => setRecentToast(null), 2500); }}>Clear all</button>
                   )}
                 </div>
                 {recentFiles.length === 0 ? (
@@ -919,7 +928,7 @@ export default function Home() {
                   </div>
                   <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
                     <button data-testid="button-payload-template" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(true)}><Type className="w-3.5 h-3.5" />{!isMobile && 'QR Data'}</button>
-                    {rawFileData && <button data-testid="button-remap" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={() => setShowColumnMapper(true)}><Columns className="w-3.5 h-3.5" />{!isMobile && 'Re-map'}</button>}
+                    {rawFileData && <button data-testid="button-remap" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg font-semibold transition-colors" style={{ background: 'rgba(42,90,158,0.12)', color: '#2A5A9E', border: '1px solid rgba(42,90,158,0.3)' }} onClick={() => setShowColumnMapper(true)}><Columns className="w-3.5 h-3.5" />{!isMobile && 'Re-map Columns'}</button>}
                     <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'New file'}</button>
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
@@ -1248,6 +1257,12 @@ export default function Home() {
                     <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Image Format</label>
                     <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.format} onChange={(e) => handleUpdateConfig('format', e.target.value)}>
                       <option value="png">PNG</option><option value="svg">SVG</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>PDF Paper Size</label>
+                    <select data-testid="select-paper-size" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)}>
+                      {Object.entries(PAPER_SIZES).map(([key, ps]) => <option key={key} value={key}>{ps.name}</option>)}
                     </select>
                   </div>
                 </div>
@@ -1722,6 +1737,10 @@ export default function Home() {
                 <h3 className="text-[16px] font-bold">QR Data Template</h3>
                 <p className="text-[13px]" style={{ color: c.tx3 }}>Generate payloads from a template with variables</p>
               </div>
+            </div>
+            <div className="flex items-start gap-2.5 rounded-lg px-3 py-2.5 mb-4" style={{ background: 'rgba(0,176,240,0.08)', border: '1px solid rgba(0,176,240,0.15)' }}>
+              <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#00B0F0]" />
+              <p className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>This controls what data is encoded inside each QR code. By default, QR codes contain just the asset tag. Use this template to build structured data (like JSON) that includes the asset tag, folder paths, or other fields. Click the variable buttons below to insert them into your template.</p>
             </div>
             <div className="mb-3">
               <label className="text-[12px] font-semibold block mb-1.5" style={{ color: c.tx2 }}>Template</label>

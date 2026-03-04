@@ -11,6 +11,7 @@ export interface QRConfig {
   fontPath: number;
   format: string;
   pixelPerfect: boolean;
+  paperSize: string;
 }
 
 export interface GeneratedQR {

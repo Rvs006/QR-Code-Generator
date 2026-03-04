@@ -14,14 +14,24 @@ export async function exportToPDF(
 
   if (itemsToExport.length === 0) return;
 
+  const paperSizes: Record<string, { w: number; h: number }> = {
+    a3: { w: 297, h: 420 },
+    a4: { w: 210, h: 297 },
+    a5: { w: 148, h: 210 },
+    letter: { w: 216, h: 279 },
+    legal: { w: 216, h: 356 },
+    tabloid: { w: 279, h: 432 },
+  };
+  const paper = paperSizes[config.paperSize] || paperSizes.a4;
+
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: 'a4',
+    format: [paper.w, paper.h],
   });
 
-  const pageWidth = 210;
-  const pageHeight = 297;
+  const pageWidth = paper.w;
+  const pageHeight = paper.h;
   const marginTop = 15;
   const marginLeft = 10;
   const marginRight = 10;
