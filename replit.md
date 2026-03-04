@@ -50,10 +50,10 @@ client/src/
 - Batch generation with live progress tracking
 - **Generation failure warning**: If any QR codes fail to generate, a red badge shows the count (e.g., "3 of 100 QR codes failed to generate")
 - QR verification using isolated QR-only image (qrOnlyDataURL) for accurate decode
-- Dual export: ZIP (folder structure with collision-safe filenames) + PDF (configurable paper size with crop marks + safety guards for oversized labels)
-- **PDF paper size**: A3, A4, A5, Letter, Legal, Tabloid. Selector in Settings panel and as split-button next to PDF download button. Default: A4.
-- **Print paper size**: Now respects configured paper size (was hardcoded A4). Uses `config.paperSize` for dynamic `@page { size }` CSS.
-- **Custom export filename**: Editable inline in results bar, date suffix auto-appended. Passed to `exportToZip()` and `exportToPDF()`.
+- Export: ZIP (folder structure with collision-safe filenames) + Print (label sheets via browser print dialog, which also supports "Save as PDF")
+- **Paper size**: A3, A4, A5, Letter, Legal, Tabloid. Configurable in QR Config panel. Used by print-labels.ts for `@page { size }` CSS. Default: A4.
+- **Print Preview**: Select All / Deselect All buttons, individual label checkboxes, click to inspect payload. Print sends selected labels to browser print dialog.
+- **Custom export filename**: Editable inline in results bar, date suffix auto-appended. Passed to `exportToZip()`.
 - Label-sized gallery cards with aspect ratio matching configured label dimensions
 - **Individual QR download**: Download button appears on hover over gallery cards (top-right corner), uses `stopPropagation` to avoid opening scan viewer
 - **QR Data Template** (toolbar: "QR Data"): Modal with template editor using `{assetTag}`, `{mainFolder}`, `{subFolder}` variables. Toggle for overwrite vs fill-empty-only. Template saved to localStorage. Info box explains the feature.
@@ -62,7 +62,7 @@ client/src/
 - **Select All**: Only selects visible/filtered rows when search is active (was selecting all rows regardless of filter)
 - Professional printing optimized for standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
-- Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, D=pdf, P=print, C=config, ?=help)
+- Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, P=print, C=config, ?=help)
 - Row selection, search/filter, column sorting
 - Duplicate rows highlighted with amber border and "Duplicate" badge in data table
 - **Accessibility**: aria-labels on all icon-only buttons, role="dialog" on modals

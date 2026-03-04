@@ -207,8 +207,7 @@ export default function Home() {
     ],
     results: [
       { target: 'button-download-zip', title: 'Download as ZIP', description: 'Export all QR code images organized in a folder structure matching your Main Folder / Sub-Folder hierarchy.', position: 'bottom' },
-      { target: 'button-download-pdf', title: 'Download as PDF', description: 'Generate a print-ready PDF with labels arranged on your chosen paper size. Use the dropdown next to this button to pick the paper size.', position: 'bottom' },
-      { target: 'button-print', title: 'Print Labels', description: 'Print your QR code labels directly from the browser — no download needed.', position: 'bottom' },
+      { target: 'button-print', title: 'Print Labels', description: 'Open print preview to select labels, then send to your printer or save as PDF using your browser\'s print dialog.', position: 'bottom' },
     ],
   };
 
@@ -800,8 +799,7 @@ export default function Home() {
       if (!isInput && !e.metaKey && !e.ctrlKey) {
         if (e.key === 'g' && appState === 'loaded') { e.preventDefault(); handleGenerate(); }
         if (e.key === 'z' && appState === 'results') { e.preventDefault(); handleDownloadZip(); }
-        if (e.key === 'd' && appState === 'results') { e.preventDefault(); handleDownloadPDF(); }
-        if (e.key === 'p' && appState === 'results') { e.preventDefault(); handlePrint(); }
+        if (e.key === 'p' && appState === 'results') { e.preventDefault(); setShowPrintPreview(true); }
         if (e.key === 'c') { e.preventDefault(); setShowConfig(prev => !prev); }
         if (e.key === '?') { e.preventDefault(); setShowHelpModal(true); }
       }
@@ -1285,15 +1283,7 @@ export default function Home() {
                   </div>
                   <div className={`flex items-center gap-1.5 ${isMobile ? 'flex-wrap' : ''}`}>
                     <button data-testid="button-download-zip" className={`flex items-center gap-1.5 bg-[#4CAF50] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#388E3C')} onMouseLeave={(e) => (e.currentTarget.style.background = '#4CAF50')} onClick={handleDownloadZip}><Download className="w-4 h-4" />{!isMobile && 'ZIP'}</button>
-                    {!isMobile && <div className="w-px h-5 mx-0.5" style={{ background: c.bdr }} />}
-                    <div className="flex items-center">
-                      <button data-testid="button-download-pdf" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-l-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleDownloadPDF}><FileText className="w-4 h-4" />{!isMobile && 'PDF'}</button>
-                      <select data-testid="select-export-paper-size" className="bg-[#1B3F6F] text-white text-[11px] font-semibold border-l border-white/20 outline-none cursor-pointer" style={{ padding: isMobile ? '6px 4px 6px 2px' : '8px 6px 8px 4px' }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)} title="Paper size for PDF and Print">
-                        {Object.entries(PAPER_SIZES).map(([key, ps]) => <option key={key} value={key}>{key.toUpperCase()}</option>)}
-                      </select>
-                      <button data-testid="button-print" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-r-lg font-semibold text-[13px] transition-colors`} style={{ background: d ? '#1B3F6F' : '#3d6db5', color: 'white' }} onMouseEnter={(e) => (e.currentTarget.style.background = d ? '#153055' : '#2A5A9E')} onMouseLeave={(e) => (e.currentTarget.style.background = d ? '#1B3F6F' : '#3d6db5')} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
-                    </div>
-                    {!isMobile && <div className="w-px h-5 mx-0.5" style={{ background: c.bdr }} />}
+                    <button data-testid="button-print" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
                     <button data-testid="button-verify" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />{!isMobile && 'Verify'}</button>
                     <button data-testid="button-folder-tree" className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-[13px] transition-colors`} style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />{!isMobile && 'Folders'}</button>
                     <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Edit Data'}</button>
@@ -1580,7 +1570,7 @@ export default function Home() {
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 text-[12px] font-bold text-white bg-[#4CAF50]">3</div>
-                <div><strong className="block" style={{ color: c.tx }}>Generate & export</strong>Generate ISO/IEC 18004 QR codes. Download as ZIP (folder structure) or PDF (print-ready A4 label sheets). Print directly or verify with jsQR decode.</div>
+                <div><strong className="block" style={{ color: c.tx }}>Generate & export</strong>Generate ISO/IEC 18004 QR codes. Download as ZIP (folder structure) or print label sheets directly. Use your browser's "Save as PDF" option from the print dialog if you need a PDF file.</div>
               </div>
             </div>
           </div>
@@ -1614,7 +1604,7 @@ export default function Home() {
               <div>
                 <strong className="block mb-2" style={{ color: c.tx }}>Keyboard Shortcuts</strong>
                 <div className="space-y-1.5">
-                  {[['ESC', 'Close any modal'], ['←', 'Previous QR in viewer'], ['→', 'Next QR in viewer'], ['G', 'Generate QR codes'], ['Z', 'Download ZIP'], ['D', 'Download PDF'], ['P', 'Print labels'], ['C', 'Toggle config panel'], ['?', 'Open this help']].map(([key, desc]) => (
+                  {[['ESC', 'Close any modal'], ['←', 'Previous QR in viewer'], ['→', 'Next QR in viewer'], ['G', 'Generate QR codes'], ['Z', 'Download ZIP'], ['P', 'Print labels'], ['C', 'Toggle config panel'], ['?', 'Open this help']].map(([key, desc]) => (
                     <div key={key} className="flex items-center gap-3">
                       <span className="px-2 py-0.5 rounded text-[11px] font-mono" style={{ background: c.bg2, border: `1px solid ${c.bdr}` }}>{key}</span>
                       <span>{desc}</span>
@@ -1626,7 +1616,7 @@ export default function Home() {
                 <strong className="block mb-2" style={{ color: c.tx }}>Supported File Formats</strong>
                 <div className="space-y-1">
                   <div>Import: .xlsx, .xls, .csv, .pdf</div>
-                  <div>Export: ZIP (folder structure), PDF (A4 label sheets)</div>
+                  <div>Export: ZIP (folder structure), Print (label sheets)</div>
                 </div>
               </div>
               <div style={{ borderTop: `1px solid ${c.bdr}`, paddingTop: '12px' }}>
