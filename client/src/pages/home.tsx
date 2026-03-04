@@ -133,8 +133,8 @@ export default function Home() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showRecentFiles, setShowRecentFiles] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [config, setConfig] = useState<QRConfig & { name?: string; desc?: string }>({ ...PRESETS.indoor });
-  const [activePreset, setActivePreset] = useState('indoor');
+  const [config, setConfig] = useState<QRConfig & { name?: string; desc?: string }>({ ...PRESETS.draft });
+  const [activePreset, setActivePreset] = useState('draft');
   const [customPresets, setCustomPresets] = useState<Record<string, QRConfig>>(() => {
     try { return JSON.parse(localStorage.getItem('ec-custom-presets') || '{}'); } catch { return {}; }
   });
