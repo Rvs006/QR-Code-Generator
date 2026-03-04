@@ -146,7 +146,6 @@ export default function Home() {
   const [newPresetName, setNewPresetName] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0, asset: '' });
   const [searchQuery, setSearchQuery] = useState('');
-  const [showPresetDropdown, setShowPresetDropdown] = useState(false);
   const [generatedCount, setGeneratedCount] = useState(0);
   const [generatedImages, setGeneratedImages] = useState<GeneratedQR[]>([]);
   const [generatedIndices, setGeneratedIndices] = useState<number[]>([]);
@@ -196,8 +195,7 @@ export default function Home() {
     landing: [
       { target: 'dropzone', title: 'Upload Your Data', description: 'Drop an Excel (.xlsx), CSV, or PDF file here with your asset data. The app expects 4 columns: Main Folder, Sub-Folder, Asset Tag, and Payload.', position: 'bottom' },
       { target: 'button-load-demo', title: 'Try Demo Data', description: 'Not ready to upload? Load sample data with 12 assets to explore all features without needing a file.', position: 'bottom' },
-      { target: 'button-preset-dropdown', title: 'Choose a Preset', description: 'Pick a QR label preset: Quick Draft for fast testing, Indoor Standard for office labels, or Outdoor Harsh for weatherproof labels.', position: 'bottom' },
-      { target: 'button-settings', title: 'Customize Settings', description: 'Fine-tune label size, DPI, error correction level, PDF paper size, and other QR code parameters.', position: 'bottom' },
+      { target: 'button-settings', title: 'Settings & Presets', description: 'Open QR Configuration to pick a preset (Indoor, Outdoor, Draft) or fine-tune label size, DPI, error correction, paper size, and more.', position: 'bottom' },
       { target: 'button-theme-toggle', title: 'Light / Dark Mode', description: 'Switch between light and dark themes to suit your preference.', position: 'bottom' },
     ],
     loaded: [
@@ -661,7 +659,6 @@ export default function Home() {
       setConfig({ ...customPresets[key] });
     }
     setActivePreset(key);
-    setShowPresetDropdown(false);
   };
 
   const handleSaveCustomPreset = (name: string) => {
@@ -882,52 +879,7 @@ export default function Home() {
           {appState !== 'empty' && (
             <button data-testid="button-home" aria-label="Home" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
           )}
-          <div className="relative">
-            <button data-testid="button-preset-dropdown" className={`flex items-center gap-1.5 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[13px] transition-colors`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
-              <Zap className="w-3.5 h-3.5 text-[#F5A623]" />
-              {!isMobile && <span>{activePreset === 'custom' ? 'Custom' : (PRESETS[activePreset]?.name || activePreset)}</span>}
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            {showPresetDropdown && (
-              <>
-              <div className="fixed inset-0 z-[49]" onClick={() => setShowPresetDropdown(false)} />
-              <div className="absolute right-0 top-full mt-1 w-52 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-                {Object.entries(PRESETS).map(([key, preset]) => (
-                  <button key={key} data-testid={`button-preset-${key}`} className="w-full text-left px-3 py-2.5 transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => handleSelectPreset(key)}>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[13px] ${activePreset === key ? 'font-semibold' : ''}`} style={{ color: activePreset === key ? '#00B0F0' : c.tx }}>{preset.name}</span>
-                      {activePreset === key && <Check className="w-3.5 h-3.5 text-[#00B0F0]" />}
-                    </div>
-                    <div className="text-[11px] mt-0.5 leading-snug" style={{ color: c.tx3 }}>{preset.desc}</div>
-                  </button>
-                ))}
-                {Object.keys(customPresets).length > 0 && (
-                  <div style={{ borderTop: `1px solid ${c.bdr}` }}>
-                    <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: c.tx3 }}>My Presets</div>
-                    {Object.keys(customPresets).map(name => (
-                      <div key={name} className="flex items-center w-full px-3 py-2 transition-colors group" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
-                        <button className="flex-1 text-left" onClick={() => handleSelectPreset(name)}>
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[13px] ${activePreset === name ? 'font-semibold' : ''}`} style={{ color: activePreset === name ? '#00B0F0' : c.tx }}>{name}</span>
-                            {activePreset === name && <Check className="w-3.5 h-3.5 text-[#00B0F0]" />}
-                          </div>
-                        </button>
-                        <button data-testid={`button-delete-preset-${name}`} className="ml-2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); handleDeleteCustomPreset(name); }}><Trash2 className="w-3 h-3" /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ borderTop: `1px solid ${c.bdr}` }}>
-                  <button className="w-full text-left px-3 py-2.5 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => { setShowPresetDropdown(false); setShowConfig(true); }}>
-                    <Settings className="w-3.5 h-3.5 inline mr-2" />Customize...
-                  </button>
-                </div>
-              </div>
-              </>
-            )}
-          </div>
-
-          {!isMobile && <button data-testid="button-settings" aria-label="Settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>}
+          <button data-testid="button-settings" aria-label="Settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>
 
           {!isMobile && <div className="relative">
             <button data-testid="button-recent-files" aria-label="Recent files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>

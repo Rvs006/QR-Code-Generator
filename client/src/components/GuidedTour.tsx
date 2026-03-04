@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export interface TourStep {
   target: string;
@@ -254,7 +254,7 @@ export default function GuidedTour({ steps, tourKey, active, onComplete, onSkip 
                 Step {currentStep + 1} of {steps.length}
               </span>
               <button
-                data-testid="button-tour-skip"
+                data-testid="button-tour-exit"
                 onClick={handleSkip}
                 style={{
                   display: 'flex',
@@ -269,8 +269,8 @@ export default function GuidedTour({ steps, tourKey, active, onComplete, onSkip 
                   borderRadius: 4,
                 }}
               >
-                <SkipForward size={12} />
-                Skip tour
+                <X size={12} />
+                Exit tour
               </button>
             </div>
 
