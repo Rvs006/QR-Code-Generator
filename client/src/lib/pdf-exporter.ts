@@ -45,8 +45,10 @@ export async function exportToPDF(
   const usableWidth = pageWidth - marginLeft - marginRight;
   const usableHeight = pageHeight - marginTop - marginBottom;
 
-  const cols = Math.floor((usableWidth + gapX) / (labelW + gapX));
-  const rows = Math.floor((usableHeight + gapY) / (labelH + gapY));
+  let cols = Math.floor((usableWidth + gapX) / (labelW + gapX));
+  let rows = Math.floor((usableHeight + gapY) / (labelH + gapY));
+  if (cols < 1) cols = 1;
+  if (rows < 1) rows = 1;
   const labelsPerPage = cols * rows;
 
   const startX = marginLeft + (usableWidth - (cols * labelW + (cols - 1) * gapX)) / 2;

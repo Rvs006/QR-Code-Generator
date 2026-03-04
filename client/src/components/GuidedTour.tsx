@@ -105,7 +105,7 @@ export default function GuidedTour({ steps, tourKey, active, onComplete, onSkip 
     };
   }, [active]);
 
-  const updatePosition = useCallback(() => {
+  const updatePosition = useCallback((shouldScroll = false) => {
     if (!active || currentStep >= steps.length) return;
     const step = steps[currentStep];
     const el = document.querySelector(`[data-testid="${step.target}"]`);
@@ -115,7 +115,9 @@ export default function GuidedTour({ steps, tourKey, active, onComplete, onSkip 
       return;
     }
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    if (shouldScroll) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
 
     requestAnimationFrame(() => {
       const rect = el.getBoundingClientRect();
@@ -129,14 +131,18 @@ export default function GuidedTour({ steps, tourKey, active, onComplete, onSkip 
   }, [active, currentStep, steps]);
 
   useEffect(() => {
-    updatePosition();
-    const interval = setInterval(updatePosition, 500);
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
+    updatePosition(true);
+  }, [currentStep, active, steps]);
+
+  useEffect(() => {
+    const poll = () => updatePosition(false);
+    const interval = setInterval(poll, 500);
+    window.addEventListener('resize', poll);
+    window.addEventListener('scroll', poll, true);
     return () => {
       clearInterval(interval);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', poll);
+      window.removeEventListener('scroll', poll, true);
     };
   }, [updatePosition]);
 

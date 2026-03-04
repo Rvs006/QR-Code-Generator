@@ -13,6 +13,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 
 export async function exportToZip(images: GeneratedQR[], customFilename?: string): Promise<void> {
   const zip = new JSZip();
+  const usedPaths = new Map<string, number>();
 
   for (const img of images) {
     let folderPath = '';
@@ -26,7 +27,17 @@ export async function exportToZip(images: GeneratedQR[], customFilename?: string
       folderPath = 'Outputted QR Codes/';
     }
 
-    const filename = `${sanitize(img.assetTag)}.png`;
+    const baseName = sanitize(img.assetTag);
+    let filename = `${baseName}.png`;
+    let fullPath = folderPath + filename;
+    while (usedPaths.has(fullPath)) {
+      const count = usedPaths.get(fullPath)!;
+      usedPaths.set(fullPath, count + 1);
+      filename = `${baseName}_${count}.png`;
+      fullPath = folderPath + filename;
+    }
+    usedPaths.set(fullPath, 1);
+
     const base64 = img.dataURL.split(',')[1];
     const binaryData = base64ToUint8Array(base64);
     zip.file(folderPath + filename, binaryData, { binary: true });

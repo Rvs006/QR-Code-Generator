@@ -11,6 +11,10 @@ import { verifyQR, type VerifyResult } from '@/lib/qr-verifier';
 
 import logoPath from '@assets/Gemini_Generated_Image_7x4kll7x4kll7x4k-removebg-preview_1772556180115.png';
 import AppIcon from '@/components/AppIcon';
+import ColumnMapper from '@/components/ColumnMapper';
+import DuplicateModal from '@/components/DuplicateModal';
+import QRConfigPanel from '@/components/QRConfigPanel';
+import PayloadTemplateModal from '@/components/PayloadTemplateModal';
 
 interface RowData extends ParsedRow {
   valid: boolean;
@@ -100,13 +104,13 @@ const MOCK_ROWS: ParsedRow[] = [
 
 function validateRows(data: ParsedRow[]): RowData[] {
   const tagCount: Record<string, number> = {};
-  data.forEach(r => { const tag = r.assetTag.trim(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
+  data.forEach(r => { const tag = r.assetTag.trim().toLowerCase(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
   return data.map((r) => {
     if (!r.payload || r.payload.trim() === '') return { ...r, valid: false, warning: 'Empty payload — QR will have no data' };
     let isJson = false;
     try { JSON.parse(r.payload); isJson = true; } catch(e) {}
     if (!isJson) return { ...r, valid: true, warning: 'Payload is not valid JSON' };
-    const tag = r.assetTag.trim();
+    const tag = r.assetTag.trim().toLowerCase();
     if (tag && tagCount[tag] > 1) return { ...r, valid: true, warning: `Duplicate asset tag — appears ${tagCount[tag]} times` };
     if (r.payload.length > 150) return { ...r, valid: true, warning: `Long payload (${r.payload.length} chars) — may need QR Version 7+` };
     return { ...r, valid: true, warning: null };
@@ -181,7 +185,9 @@ export default function Home() {
   const [lastLoadedFileName, setLastLoadedFileName] = useState('');
   const [duplicateSummary, setDuplicateSummary] = useState<{ total: number; dupes: number } | null>(null);
   const [exportProgress, setExportProgress] = useState<string | null>(null);
+  const [generationWarning, setGenerationWarning] = useState<string | null>(null);
   const genCancelRef = useRef(false);
+  const storageWarningShown = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tourActive, setTourActive] = useState(false);
   const [tourPhase, setTourPhase] = useState<'landing' | 'loaded' | 'results'>('landing');
@@ -257,11 +263,20 @@ export default function Home() {
         localStorage.setItem('ec-session-rows', JSON.stringify(rows));
         localStorage.setItem('ec-session-config', JSON.stringify(config));
         localStorage.setItem('ec-session-state', appState);
-      } catch {}
+      } catch (err: any) {
+        if (!storageWarningShown.current && err?.name === 'QuotaExceededError') {
+          storageWarningShown.current = true;
+          setRecentToast('Storage full — session may not be saved');
+          setTimeout(() => setRecentToast(null), 4000);
+        }
+      }
     }
   }, [rows, config, appState]);
 
   const handleResumeSession = () => {
+    if (rows.length > 0 && !window.confirm('You have data loaded. Resuming will replace it. Continue?')) {
+      return;
+    }
     try {
       const savedRows = JSON.parse(localStorage.getItem('ec-session-rows') || '[]');
       const savedConfig = JSON.parse(localStorage.getItem('ec-session-config') || '{}');
@@ -353,7 +368,7 @@ export default function Home() {
 
   const checkAndLoadRows = (validated: RowData[], fileName?: string) => {
     const tagCount: Record<string, number> = {};
-    validated.forEach(r => { const tag = r.assetTag.trim(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
+    validated.forEach(r => { const tag = r.assetTag.trim().toLowerCase(); if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1; });
     const dupes: Record<string, number> = {};
     Object.entries(tagCount).forEach(([tag, count]) => { if (count > 1) dupes[tag] = count; });
 
@@ -376,7 +391,7 @@ export default function Home() {
   const handleDuplicateKeepFirst = () => {
     const seen = new Set<string>();
     const deduped = pendingRows.filter(r => {
-      const tag = r.assetTag.trim();
+      const tag = r.assetTag.trim().toLowerCase();
       if (!tag) return true;
       if (seen.has(tag)) return false;
       seen.add(tag);
@@ -391,7 +406,7 @@ export default function Home() {
   const handleDuplicateKeepLast = () => {
     const seen = new Set<string>();
     const deduped = [...pendingRows].reverse().filter(r => {
-      const tag = r.assetTag.trim();
+      const tag = r.assetTag.trim().toLowerCase();
       if (!tag) return true;
       if (seen.has(tag)) return false;
       seen.add(tag);
@@ -588,11 +603,19 @@ export default function Home() {
     const dupeCount = Object.values(tagCount).filter(c => c > 1).reduce((a, c) => a + c, 0);
     setDuplicateSummary(dupeCount > 0 ? { total: images.length, dupes: dupeCount } : null);
 
+    const failedCount = images.filter(img => !img.dataURL).length;
+
     setGeneratedCount(images.length);
     setGeneratedImages(images);
     setGeneratedIndices(indices);
     setAppState('results');
     setGalleryPage(0);
+
+    if (failedCount > 0) {
+      setGenerationWarning(`${failedCount} of ${images.length} QR codes failed to generate`);
+    } else {
+      setGenerationWarning(null);
+    }
   };
 
   const handleCancelGenerate = () => {
@@ -606,8 +629,21 @@ export default function Home() {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.size === rows.length) setSelectedRows(new Set());
-    else setSelectedRows(new Set(rows.map((_, i) => i)));
+    const visibleIndices = filteredRows.map(r => r._idx);
+    const allVisibleSelected = visibleIndices.every(i => selectedRows.has(i));
+    if (allVisibleSelected) {
+      setSelectedRows(prev => {
+        const n = new Set(prev);
+        visibleIndices.forEach(i => n.delete(i));
+        return n;
+      });
+    } else {
+      setSelectedRows(prev => {
+        const n = new Set(prev);
+        visibleIndices.forEach(i => n.add(i));
+        return n;
+      });
+    }
   };
 
   const handleSelectRow = (idx: number) => {
@@ -812,7 +848,7 @@ export default function Home() {
 
         <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
           {appState !== 'empty' && (
-            <button data-testid="button-home" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
+            <button data-testid="button-home" aria-label="Home" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
           )}
           <div className="relative">
             <button data-testid="button-preset-dropdown" className={`flex items-center gap-1.5 rounded-lg ${isMobile ? 'px-2 py-1.5' : 'px-3 py-1.5'} text-[13px] transition-colors`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx2 }} onClick={() => setShowPresetDropdown(p => !p)}>
@@ -856,10 +892,10 @@ export default function Home() {
             )}
           </div>
 
-          {!isMobile && <button data-testid="button-settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>}
+          {!isMobile && <button data-testid="button-settings" aria-label="Settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>}
 
           {!isMobile && <div className="relative">
-            <button data-testid="button-recent-files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
+            <button data-testid="button-recent-files" aria-label="Recent files" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowRecentFiles(p => !p)} title="Recent files"><Clock className="w-4 h-4" /></button>
             {showRecentFiles && (
               <div className="absolute right-0 top-full mt-1 w-72 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
                 <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${c.bdr}` }}>
@@ -898,9 +934,9 @@ export default function Home() {
             )}
           </div>}
 
-          <button data-testid="button-help" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
+          <button data-testid="button-help" aria-label="Help" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowHelpModal(true)} title="Help"><HelpCircle className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
 
-          <button data-testid="button-theme-toggle" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#F5A623'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={toggleTheme} title={d ? 'Light mode' : 'Dark mode'}>
+          <button data-testid="button-theme-toggle" aria-label={d ? 'Switch to light mode' : 'Switch to dark mode'} className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#F5A623'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={toggleTheme} title={d ? 'Light mode' : 'Dark mode'}>
             {d ? <Sun className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /> : <Moon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} />}
           </button>
         </div>
@@ -1041,7 +1077,7 @@ export default function Home() {
                                 )}
                               </div>
                             </div>
-                            <button data-testid={`button-delete-row-${row._idx}`} className="p-1.5 rounded flex-shrink-0" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)}><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button data-testid={`button-delete-row-${row._idx}`} aria-label={`Delete row ${row.assetTag}`} className="p-1.5 rounded flex-shrink-0" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)}><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
                           {editingCell && editingCell.rowIdx === row._idx && editingCell.field === 'payload' ? (
                             <textarea
@@ -1175,7 +1211,7 @@ export default function Home() {
                               )}
                             </td>
                             <td className="px-3 py-2 text-center">
-                              <button data-testid={`button-delete-row-${row._idx}`} className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)} title="Delete row"><Trash2 className="w-3.5 h-3.5" /></button>
+                              <button data-testid={`button-delete-row-${row._idx}`} aria-label={`Delete row ${row.assetTag}`} className="p-1 rounded opacity-40 hover:opacity-100 transition-opacity" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)} title="Delete row"><Trash2 className="w-3.5 h-3.5" /></button>
                             </td>
                           </tr>
                           );
@@ -1224,6 +1260,7 @@ export default function Home() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(76,175,80,0.15)' }}><Check className="w-4 h-4 text-[#4CAF50]" /></div>
                     <span className={`${isMobile ? 'text-[13px]' : 'text-[14px]'} font-medium`} data-testid="text-generated-count">{generatedCount.toLocaleString()} QR codes</span>
+                    {generationWarning && <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" data-testid="badge-generation-warning" style={{ background: 'rgba(229,57,53,0.15)', color: '#E53935' }}><AlertTriangle className="w-3 h-3 inline mr-1" />{generationWarning}</span>}
                     {duplicateSummary && <span className="text-[11px] px-2 py-0.5 rounded-full font-medium" data-testid="badge-duplicates" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>{duplicateSummary.dupes} duplicates</span>}
                     {!isMobile && <span className="text-[12px]" style={{ color: c.tx3 }}>· just now</span>}
                     {!isMobile && <span className="text-[11px] px-1" style={{ color: c.tx3 }}>·</span>}
@@ -1302,151 +1339,29 @@ export default function Home() {
         )}
       </div>
 
-      {showConfig && (
-        <div className="fixed inset-0 z-[200]">
-          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowConfig(false)} />
-          <div className={`absolute right-0 top-0 h-full ${isMobile ? 'w-full' : 'w-[380px]'} overflow-y-auto`} style={{ background: c.bg1, borderLeft: isMobile ? 'none' : `1px solid ${c.bdr}` }}>
-            <div className="sticky top-0 px-5 py-4 flex items-center justify-between z-10" style={{ background: c.bg1, borderBottom: `1px solid ${c.bdr}` }}>
-              <h2 className="text-[16px] font-bold">QR Configuration</h2>
-              <button data-testid="button-close-config" className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => setShowConfig(false)}><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-5 space-y-5">
-              <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider block mb-2" style={{ color: c.tx3 }}>Preset</label>
-                <div className="flex gap-2">
-                  {Object.entries(PRESETS).map(([key, preset]) => (
-                    <button key={key} className="flex-1 px-3 py-2.5 rounded-lg text-left transition-all" style={activePreset === key ? { background: 'rgba(42,90,158,0.15)', border: '1px solid #2A5A9E' } : { background: c.bg2, border: `1px solid ${c.bdr}` }} onClick={() => handleSelectPreset(key)}>
-                      <div className="text-[12px] font-semibold" style={{ color: activePreset === key ? '#00B0F0' : c.tx2 }}>{preset.name}</div>
-                      <div className="text-[10px] mt-0.5 leading-snug" style={{ color: c.tx3 }}>{preset.desc.split(' — ')[1]}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>QR Code</div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[12px] font-semibold flex items-center gap-1.5 mb-1.5" style={{ color: c.tx2 }}>Error Correction</label>
-                    <select data-testid="select-ec" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.ec} onChange={(e) => handleUpdateConfig('ec', e.target.value)}>
-                      {Object.entries(EC_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Module Size</label>
-                      <div className="w-full rounded-lg px-3 py-2 text-[13px]" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx3 }}>Auto: {computedModSize}px</div>
-                    </div>
-                    <div>
-                      <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Quiet Zone</label>
-                      <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.quiet} onChange={(e) => handleUpdateConfig('quiet', parseInt(e.target.value) || 0)} />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
-                    <span className="text-[13px]" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
-                    <button data-testid="button-pixel-perfect" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
-                      <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.pixelPerfect ? '22px' : '3px' }} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Label & Print</div>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {[['labelW', 'Width (mm)'], ['labelH', 'Height (mm)']].map(([key, label]) => (
-                      <div key={key}>
-                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
-                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Print DPI</label>
-                    <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.dpi} onChange={(e) => handleUpdateConfig('dpi', parseInt(e.target.value))}>
-                      <option value={150}>150 DPI (Draft)</option><option value={300}>300 DPI (Standard)</option><option value={600}>600 DPI (High Quality)</option>
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[['fontTag', 'Tag Font (pt)'], ['fontPath', 'Path Font (pt)']].map(([key, label]) => (
-                      <div key={key}>
-                        <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
-                        <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
-                      </div>
-                    ))}
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Image Format</label>
-                    <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.format} onChange={(e) => handleUpdateConfig('format', e.target.value)}>
-                      <option value="png">PNG</option><option value="svg">SVG</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>PDF Paper Size</label>
-                    <select data-testid="select-paper-size" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)}>
-                      {Object.entries(PAPER_SIZES).map(([key, ps]) => <option key={key} value={key}>{ps.name}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Live Preview — Scaled Label</div>
-                <div className="rounded-xl p-5 flex flex-col items-center" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
-                  <div className="relative flex flex-col items-center justify-center bg-white rounded transition-all duration-300" style={{ width: `${Math.min(config.labelW * 2.8, 280)}px`, height: `${Math.min(config.labelH * 2.8, 200)}px`, border: '1.5px dashed #ccc' }}>
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 flex items-center gap-1">
-                      <div className="h-px flex-1" style={{ background: '#bbb', minWidth: '16px' }} />
-                      <span className="text-[9px] font-semibold px-1" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>{config.labelW}mm</span>
-                      <div className="h-px flex-1" style={{ background: '#bbb', minWidth: '16px' }} />
-                    </div>
-                    <div className="absolute -right-8 top-1/2 -translate-y-1/2 flex flex-col items-center gap-0.5">
-                      <div className="w-px flex-1" style={{ background: '#bbb', minHeight: '8px' }} />
-                      <span className="text-[9px] font-semibold" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace", writingMode: 'vertical-lr' as any }}>{config.labelH}mm</span>
-                      <div className="w-px flex-1" style={{ background: '#bbb', minHeight: '8px' }} />
-                    </div>
-                    <img src={generatedImages[0]?.dataURL || previewDataURL} alt="Preview" className="object-contain" style={{ maxWidth: '80%', maxHeight: '60%', imageRendering: 'pixelated' }} />
-                    <div className="text-[10px] font-bold text-[#111] mt-1 text-center" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: `${Math.min(config.fontTag, 12) * 0.85}px` }}>{rows.length > 0 ? rows[0].assetTag : 'FCU-199001'}</div>
-                    <div className="text-[8px] text-[#888] text-center" style={{ fontSize: `${Math.min(config.fontPath, 9) * 0.8}px` }}>{rows.length > 0 ? [rows[0].mainFolder, rows[0].subFolder].filter(Boolean).join(' / ') : '334OS / EMS'}</div>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-4 text-[10px]" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>
-                    <span>{config.labelW}×{config.labelH}mm</span>
-                    <span>·</span>
-                    <span>{config.dpi} DPI</span>
-                    <span>·</span>
-                    <span>{EC_LABELS[config.ec]}</span>
-                    <span>·</span>
-                    <span>Auto {computedModSize}px modules</span>
-                  </div>
-                  <div className="text-[9px] mt-1.5 text-center" style={{ color: c.tx3 }}>{config.pixelPerfect ? '✓ Pixel-perfect' : '✗ Pixel-perfect off'} · Quiet zone: {config.quiet} modules</div>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>My Presets</div>
-                {Object.keys(customPresets).length > 0 ? (
-                  <div className="space-y-1.5 mb-3">
-                    {Object.keys(customPresets).map(name => (
-                      <div key={name} className="flex items-center gap-2 rounded-lg px-3 py-2 transition-all group" style={activePreset === name ? { background: 'rgba(42,90,158,0.15)', border: '1px solid #2A5A9E' } : { background: c.bg2, border: `1px solid ${c.bdr}` }}>
-                        <button data-testid={`button-load-preset-${name}`} className="flex-1 text-left" onClick={() => { setConfig({ ...customPresets[name] }); setActivePreset(name); }}>
-                          <span className="text-[12px] font-semibold" style={{ color: activePreset === name ? '#00B0F0' : c.tx2 }}>{name}</span>
-                        </button>
-                        <button data-testid={`button-delete-preset-settings-${name}`} className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: c.tx3 }} onClick={() => handleDeleteCustomPreset(name)}><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[12px] mb-3" style={{ color: c.tx3 }}>No saved presets yet. Save your current settings below.</p>
-                )}
-                <div className="flex gap-2">
-                  <input data-testid="input-preset-name" type="text" className="flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} placeholder="Preset name..." value={newPresetName} onChange={(e) => setNewPresetName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustomPreset(newPresetName); }} />
-                  <button data-testid="button-save-preset" className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors disabled:opacity-40" style={{ background: '#2A5A9E', color: 'white' }} disabled={!newPresetName.trim()} onClick={() => handleSaveCustomPreset(newPresetName)}>Save</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <QRConfigPanel
+        showConfig={showConfig}
+        setShowConfig={setShowConfig}
+        config={config}
+        handleUpdateConfig={handleUpdateConfig}
+        activePreset={activePreset}
+        handleSelectPreset={handleSelectPreset}
+        customPresets={customPresets}
+        handleDeleteCustomPreset={handleDeleteCustomPreset}
+        handleSaveCustomPreset={handleSaveCustomPreset}
+        newPresetName={newPresetName}
+        setNewPresetName={setNewPresetName}
+        computedModSize={computedModSize}
+        generatedImages={generatedImages}
+        previewDataURL={previewDataURL}
+        rows={rows}
+        isMobile={isMobile}
+        d={d}
+        c={c}
+        PRESETS={PRESETS}
+        EC_LABELS={EC_LABELS}
+        PAPER_SIZES={PAPER_SIZES}
+      />
 
       {showPayloadModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center">
@@ -1665,100 +1580,22 @@ export default function Home() {
         </div>
       )}
 
-      {showDuplicateModal && (() => {
-        const totalRows = pendingRows.length;
-        const dupeTagCount = Object.keys(duplicateGroups).length;
-        const totalDupeRows = Object.values(duplicateGroups).reduce((s, c) => s + c, 0);
-        const uniqueCount = totalRows - totalDupeRows + dupeTagCount;
-        const removedIfDeduped = totalRows - uniqueCount;
-        const filteredDupes = dupeSearchQuery
-          ? Object.entries(duplicateGroups).filter(([tag]) => tag.toLowerCase().includes(dupeSearchQuery.toLowerCase()))
-          : Object.entries(duplicateGroups);
-        const getSeverity = (count: number) => count > 50 ? 'heavy' : count > 5 ? 'moderate' : 'mild';
-        const severityStyles: Record<string, { bg: string; border: string; badge: string; badgeColor: string }> = {
-          mild: { bg: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', badge: 'rgba(245,166,35,0.15)', badgeColor: '#F5A623' },
-          moderate: { bg: 'rgba(255,152,0,0.1)', border: '1px solid rgba(255,152,0,0.3)', badge: 'rgba(255,152,0,0.2)', badgeColor: '#FF9800' },
-          heavy: { bg: 'rgba(229,57,53,0.08)', border: '1px solid rgba(229,57,53,0.25)', badge: 'rgba(229,57,53,0.15)', badgeColor: '#E53935' },
-        };
-        return (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center">
-          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={handleDuplicateCancel} />
-          <div className="relative rounded-2xl max-w-md w-[90%] p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={handleDuplicateCancel}><X className="w-4 h-4" /></button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(245,166,35,0.15)' }}>
-                <AlertTriangle className="w-5 h-5 text-[#F5A623]" />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold">Duplicate Asset Tags Found</h3>
-                <p className="text-[13px]" style={{ color: c.tx3 }}>{dupeTagCount} tag{dupeTagCount > 1 ? 's' : ''} appear more than once</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-[12px] mb-3 px-1" style={{ color: c.tx2 }}>
-              <span><strong>{totalRows}</strong> total rows</span>
-              <span style={{ color: c.tx3 }}>·</span>
-              <span><strong>{uniqueCount}</strong> unique tags</span>
-              <span style={{ color: c.tx3 }}>·</span>
-              <span style={{ color: '#F5A623' }}><strong>{removedIfDeduped}</strong> would be removed</span>
-            </div>
-            {dupeTagCount > 5 && (
-              <div className="mb-3">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
-                  <input data-testid="input-dupe-search" type="text" placeholder="Search duplicate tags..." className="w-full pl-8 pr-3 py-2 rounded-lg text-[12px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={dupeSearchQuery} onChange={(e) => setDupeSearchQuery(e.target.value)} />
-                </div>
-              </div>
-            )}
-            <div className="rounded-xl p-3 mb-4 max-h-[200px] overflow-y-auto space-y-2" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
-              {filteredDupes.map(([tag, count]) => {
-                const sev = getSeverity(count);
-                const ss = severityStyles[sev];
-                return (
-                  <div key={tag} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: ss.bg, border: ss.border }}>
-                    <span className="text-[13px] font-semibold truncate mr-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{tag}</span>
-                    <span className="text-[12px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ background: ss.badge, color: ss.badgeColor }}>×{count}</span>
-                  </div>
-                );
-              })}
-              {filteredDupes.length === 0 && dupeSearchQuery && (
-                <div className="text-center text-[12px] py-3" style={{ color: c.tx3 }}>No matching tags found</div>
-              )}
-            </div>
-            <div className="rounded-lg px-3 py-2.5 mb-4 flex items-start gap-2" style={{ background: d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.04)', border: `1px solid rgba(245,166,35,0.15)` }}>
-              <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#F5A623]" />
-              <div className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>
-                Your file contains rows with the same Asset Tag name. This can happen when one asset has multiple entries with different data. Choose how to handle them:
-              </div>
-            </div>
-            {dupeHoverAction && (
-              <div className="text-[11px] mb-2 px-1 font-medium" style={{ color: '#2A5A9E' }}>
-                {dupeHoverAction === 'keepAll' && `Will import all ${totalRows} rows including duplicates`}
-                {dupeHoverAction === 'keepFirst' && `Will remove ${removedIfDeduped} duplicate rows and keep ${uniqueCount} rows`}
-                {dupeHoverAction === 'keepLast' && `Will remove ${removedIfDeduped} duplicate rows and keep ${uniqueCount} rows (last occurrence)`}
-              </div>
-            )}
-            <div className="space-y-2 mb-4">
-              <button data-testid="button-dupe-keep-all" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.25)' }} onClick={handleDuplicateKeepAll} onMouseEnter={() => setDupeHoverAction('keepAll')} onMouseLeave={() => setDupeHoverAction(null)}>
-                <div className="text-[13px] font-semibold mb-0.5" style={{ color: '#F5A623' }}>Keep All Rows</div>
-                <div className="text-[11px]" style={{ color: c.tx3 }}>Import every row, including duplicates. Each will generate its own QR code — useful if duplicate entries have different payloads.</div>
-              </button>
-              <button data-testid="button-dupe-keep-first" className="w-full text-left rounded-lg px-4 py-3 transition-colors bg-[#2A5A9E]" onClick={handleDuplicateKeepFirst} onMouseEnter={() => setDupeHoverAction('keepFirst')} onMouseLeave={() => setDupeHoverAction(null)}>
-                <div className="text-[13px] font-semibold mb-0.5 text-white">Keep First Only</div>
-                <div className="text-[11px] text-white/70">Remove duplicates and keep only the first occurrence of each Asset Tag. Best when duplicates are accidental.</div>
-              </button>
-              <button data-testid="button-dupe-keep-last" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: '1px solid rgba(42,90,158,0.25)' }} onClick={handleDuplicateKeepLast} onMouseEnter={() => setDupeHoverAction('keepLast')} onMouseLeave={() => setDupeHoverAction(null)}>
-                <div className="text-[13px] font-semibold mb-0.5" style={{ color: '#2A5A9E' }}>Keep Last Only</div>
-                <div className="text-[11px]" style={{ color: c.tx3 }}>Remove duplicates and keep only the last occurrence of each Asset Tag. Best when the latest entry is the corrected one.</div>
-              </button>
-              <button data-testid="button-dupe-cancel" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}` }} onClick={handleDuplicateCancel}>
-                <div className="text-[13px] font-semibold mb-0.5" style={{ color: c.tx2 }}>Cancel</div>
-                <div className="text-[11px]" style={{ color: c.tx3 }}>Go back without importing. You can fix your file and try again.</div>
-              </button>
-            </div>
-          </div>
-        </div>
-        );
-      })()}
+      {showDuplicateModal && (
+        <DuplicateModal
+          pendingRows={pendingRows}
+          duplicateGroups={duplicateGroups}
+          dupeSearchQuery={dupeSearchQuery}
+          setDupeSearchQuery={setDupeSearchQuery}
+          dupeHoverAction={dupeHoverAction}
+          setDupeHoverAction={setDupeHoverAction}
+          handleDuplicateKeepAll={handleDuplicateKeepAll}
+          handleDuplicateKeepFirst={handleDuplicateKeepFirst}
+          handleDuplicateKeepLast={handleDuplicateKeepLast}
+          handleDuplicateCancel={handleDuplicateCancel}
+          d={d}
+          c={c}
+        />
+      )}
 
       {showHelpModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center">
@@ -1801,157 +1638,31 @@ export default function Home() {
         </div>
       )}
 
-      {showColumnMapper && rawFileData && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center">
-          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowColumnMapper(false)} />
-          <div className={`relative rounded-2xl ${isMobile ? 'w-[95%] p-4 max-h-[90vh] overflow-y-auto' : 'w-[90%] max-w-xl p-6 max-h-[85vh] overflow-y-auto'} shadow-2xl`} style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-            <button className="absolute top-4 right-4 p-1 z-10" style={{ color: c.tx3 }} onClick={() => setShowColumnMapper(false)}><X className="w-4 h-4" /></button>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(42,90,158,0.15)' }}>
-                <FileSpreadsheet className="w-5 h-5 text-[#2A5A9E]" />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold" style={{ color: c.tx }}>Map Your Columns</h3>
-                <p className="text-[12px]" style={{ color: c.tx3 }}>We found {rawFileData.headers.length} columns in your file. Tell us what each one means.</p>
-              </div>
-            </div>
+      <ColumnMapper
+        showColumnMapper={showColumnMapper}
+        setShowColumnMapper={setShowColumnMapper}
+        rawFileData={rawFileData!}
+        columnMapping={columnMapping}
+        setColumnMapping={setColumnMapping}
+        handleApplyMapping={handleApplyMapping}
+        fileError={fileError}
+        isMobile={isMobile}
+        d={d}
+        c={c}
+      />
 
-            <div className="rounded-lg px-3 py-2.5 mb-4 flex items-start gap-2" style={{ background: d ? 'rgba(0,176,240,0.08)' : 'rgba(42,90,158,0.05)', border: `1px solid ${d ? 'rgba(0,176,240,0.2)' : 'rgba(42,90,158,0.12)'}` }}>
-              <HelpCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#2A5A9E]" />
-              <div className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>
-                Use the dropdowns to match each field to the correct column from your spreadsheet. Only <strong>Asset Tag</strong> is required — the others are optional. The preview below each dropdown shows what data will be used.
-              </div>
-            </div>
-
-            <div className="space-y-3 mb-4">
-              {([
-                { key: 'assetTag', label: 'Asset Tag', required: true, desc: 'The unique name printed on each QR label', example: 'e.g. FCU-199001, AHU-200003' },
-                { key: 'mainFolder', label: 'Main Folder', required: false, desc: 'Groups labels into project/building folders in the ZIP export', example: 'e.g. 334OS, Building-A' },
-                { key: 'subFolder', label: 'Sub-Folder', required: false, desc: 'Second level of folder structure (system, floor, etc.)', example: 'e.g. EMS, Level-19, HVAC' },
-                { key: 'payload', label: 'Payload', required: false, desc: 'Machine-readable data embedded in the QR code (JSON, URL, or text)', example: 'e.g. {"guid":"abc-123","site":"334OS"}' },
-              ] as const).map(({ key, label, required, desc, example }) => {
-                const selectedIdx = columnMapping[key];
-                const previewVal = selectedIdx !== undefined && rawFileData.rawRows[0] ? String(rawFileData.rawRows[0][selectedIdx] || '') : null;
-                return (
-                <div key={key} className="rounded-lg p-3" style={{ background: c.bg2, border: `1px solid ${selectedIdx !== undefined ? 'rgba(42,90,158,0.3)' : c.bdr}` }}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="text-[13px] font-semibold" style={{ color: c.tx }}>{label}</span>
-                    {required && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: 'rgba(229,57,53,0.1)', color: '#E53935' }}>Required</span>}
-                  </div>
-                  <div className="text-[11px] mb-2 leading-snug" style={{ color: c.tx3 }}>{desc} — <span style={{ fontStyle: 'italic' }}>{example}</span></div>
-                  <select
-                    data-testid={`select-map-${key}`}
-                    className="w-full rounded-lg px-3 py-2 text-[13px] outline-none"
-                    style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }}
-                    value={selectedIdx !== undefined ? String(selectedIdx) : ''}
-                    onChange={(e) => setColumnMapping(prev => ({ ...prev, [key]: e.target.value !== '' ? parseInt(e.target.value) : undefined }))}
-                  >
-                    <option value="">— Not in my file —</option>
-                    {rawFileData.headers.map((h, i) => (
-                      <option key={i} value={String(i)}>{h || `Column ${i + 1}`}</option>
-                    ))}
-                  </select>
-                  {previewVal && (
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <Check className="w-3 h-3 text-[#4CAF50] flex-shrink-0" />
-                      <span className="text-[11px] truncate" style={{ color: '#4CAF50', fontFamily: "'JetBrains Mono', monospace" }}>{previewVal.substring(0, 60)}{previewVal.length > 60 ? '...' : ''}</span>
-                    </div>
-                  )}
-                </div>
-                );
-              })}
-            </div>
-
-            {rawFileData.rawRows.length > 0 && (
-              <details className="mb-4">
-                <summary className="text-[11px] font-bold uppercase tracking-wider cursor-pointer select-none py-1" style={{ color: c.tx3 }}>Your file data (first row)</summary>
-                <div className="rounded-lg p-3 mt-2 space-y-2.5" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
-                  {rawFileData.headers.map((h, i) => {
-                    const isUsed = Object.values(columnMapping).includes(i);
-                    const val = String(rawFileData.rawRows[0]?.[i] || '—');
-                    return (
-                    <div key={i} className="rounded-lg p-2" style={{ background: isUsed ? (d ? 'rgba(76,175,80,0.06)' : 'rgba(76,175,80,0.04)') : c.bg2 }}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded font-mono flex-shrink-0" style={{ background: isUsed ? 'rgba(76,175,80,0.12)' : c.bg3, color: isUsed ? '#4CAF50' : c.tx3 }}>{i + 1}</span>
-                        <span className="text-[12px] font-medium truncate" style={{ color: isUsed ? c.tx : c.tx3 }}>{h || `Column ${i + 1}`}</span>
-                      </div>
-                      <div className="text-[11px] break-all leading-relaxed pl-6" style={{ color: c.tx2, fontFamily: "'JetBrains Mono', monospace" }}>{val.substring(0, 120)}{val.length > 120 ? '...' : ''}</div>
-                    </div>
-                    );
-                  })}
-                </div>
-              </details>
-            )}
-
-            {fileError && (
-              <div className="flex items-center gap-2 text-[12px] px-3 py-2 rounded-lg mb-3" style={{ background: 'rgba(229,57,53,0.1)', color: '#E53935' }}>
-                <AlertCircle className="w-3.5 h-3.5" />{fileError}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <button data-testid="button-apply-mapping" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold bg-[#2A5A9E] text-white disabled:opacity-40" onClick={handleApplyMapping} disabled={columnMapping.assetTag === undefined}>Apply Mapping</button>
-              <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowColumnMapper(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPayloadTemplate && (
-        <div className="fixed inset-0 z-[250] flex items-center justify-center">
-          <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={() => setShowPayloadTemplate(false)} />
-          <div className="relative rounded-2xl max-w-lg w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
-            <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={() => setShowPayloadTemplate(false)}><X className="w-4 h-4" /></button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(0,176,240,0.15)' }}>
-                <Type className="w-5 h-5 text-[#00B0F0]" />
-              </div>
-              <div>
-                <h3 className="text-[16px] font-bold">QR Data Template</h3>
-                <p className="text-[13px]" style={{ color: c.tx3 }}>Generate payloads from a template with variables</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5 rounded-lg px-3 py-2.5 mb-4" style={{ background: 'rgba(0,176,240,0.08)', border: '1px solid rgba(0,176,240,0.15)' }}>
-              <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#00B0F0]" />
-              <p className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>This controls what data is encoded inside each QR code. By default, QR codes contain just the asset tag. Use this template to build structured data (like JSON) that includes the asset tag, folder paths, or other fields. Click the variable buttons below to insert them into your template.</p>
-            </div>
-            <div className="mb-3">
-              <label className="text-[12px] font-semibold block mb-1.5" style={{ color: c.tx2 }}>Template</label>
-              <textarea
-                data-testid="textarea-payload-template"
-                className="w-full rounded-lg px-3 py-2.5 text-[13px] outline-none resize-none"
-                style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace", minHeight: '80px' }}
-                value={payloadTemplate}
-                onChange={(e) => setPayloadTemplate(e.target.value)}
-                placeholder='{"guid":"{assetTag}","site":"{mainFolder}"}'
-              />
-            </div>
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              <span className="text-[11px] font-medium" style={{ color: c.tx3 }}>Variables:</span>
-              {['{assetTag}', '{mainFolder}', '{subFolder}'].map(v => (
-                <button key={v} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,176,240,0.1)', color: '#00B0F0', border: '1px solid rgba(0,176,240,0.2)' }} onClick={() => setPayloadTemplate(prev => prev + v)}>{v}</button>
-              ))}
-            </div>
-            {rows.length > 0 && (
-              <div className="mb-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: c.tx3 }}>Preview (row 1)</div>
-                <pre className="rounded-lg p-3 text-[12px] text-[#00B0F0] whitespace-pre-wrap break-all" style={{ background: c.bg, border: `1px solid ${c.bdr}`, fontFamily: "'JetBrains Mono', monospace" }}>
-                  {payloadTemplate.replace(/\{assetTag\}/g, rows[0]?.assetTag || '').replace(/\{mainFolder\}/g, rows[0]?.mainFolder || '').replace(/\{subFolder\}/g, rows[0]?.subFolder || '')}
-                </pre>
-              </div>
-            )}
-            <div className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-4" style={{ background: c.bg2 }}>
-              <span className="text-[13px]" style={{ color: c.tx2 }}>Overwrite existing payloads</span>
-              <button data-testid="button-template-overwrite" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: templateOverwrite ? '#F5A623' : c.bg3, border: templateOverwrite ? 'none' : `1px solid ${c.bdr}` }} onClick={() => setTemplateOverwrite(p => !p)}>
-                <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: templateOverwrite ? '22px' : '3px' }} />
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <button data-testid="button-apply-template" className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold bg-[#00B0F0] text-white" onClick={handleApplyTemplate}>Apply to {templateOverwrite ? 'all' : 'empty'} rows</button>
-              <button className="flex-1 py-2.5 rounded-lg text-[13px] font-semibold transition-colors" style={{ background: c.bg2, color: c.tx2, border: `1px solid ${c.bdr}` }} onClick={() => setShowPayloadTemplate(false)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PayloadTemplateModal
+        showPayloadTemplate={showPayloadTemplate}
+        setShowPayloadTemplate={setShowPayloadTemplate}
+        payloadTemplate={payloadTemplate}
+        setPayloadTemplate={setPayloadTemplate}
+        templateOverwrite={templateOverwrite}
+        setTemplateOverwrite={setTemplateOverwrite}
+        handleApplyTemplate={handleApplyTemplate}
+        rows={rows}
+        d={d}
+        c={c}
+      />
       {recentToast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 rounded-xl shadow-2xl text-[13px] font-medium animate-in fade-in slide-in-from-bottom-4" style={{ background: c.bg1, border: `1px solid ${c.bdr}`, color: c.tx }}>
           {recentToast}

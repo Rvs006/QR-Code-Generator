@@ -18,6 +18,12 @@ export function printLabels(
     return;
   }
 
+  const paperSizeMap: Record<string, string> = {
+    a3: 'A3', a4: 'A4', a5: 'A5',
+    letter: 'letter', legal: 'legal', tabloid: 'tabloid',
+  };
+  const paperSizeCSS = paperSizeMap[config.paperSize] || 'A4';
+
   const labelW = config.labelW;
   const labelH = config.labelH;
   const tagFontPt = config.fontTag;
@@ -40,7 +46,7 @@ export function printLabels(
 <title>Electracom QR Labels</title>
 <style>
   @page {
-    size: A4;
+    size: ${paperSizeCSS};
     margin: 10mm;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
