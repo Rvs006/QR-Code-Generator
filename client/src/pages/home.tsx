@@ -961,13 +961,26 @@ export default function Home() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                               <input type="checkbox" checked={selectedRows.has(row._idx)} onChange={() => handleSelectRow(row._idx)} data-testid={`checkbox-row-${row._idx}`} className="rounded flex-shrink-0 mt-0.5" />
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[13px] font-semibold truncate" data-testid={`text-asset-tag-${row._idx}`} style={{ fontFamily: "'JetBrains Mono', monospace" }}>{row.assetTag}</span>
+                                  {editingCell && editingCell.rowIdx === row._idx && editingCell.field === 'assetTag' ? (
+                                    <input autoFocus data-testid={`input-edit-assetTag-${row._idx}`} className="w-full rounded px-1.5 py-0.5 text-[13px] font-semibold outline-none" style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: "'JetBrains Mono', monospace" }} defaultValue={row.assetTag} placeholder="Enter asset tag" onKeyDown={(e) => { if (e.key === 'Enter') handleEditCell(row._idx, 'assetTag', (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCell(null); }} onBlur={(e) => handleEditCell(row._idx, 'assetTag', e.target.value)} />
+                                  ) : (
+                                    <span className="text-[13px] font-semibold truncate cursor-pointer" data-testid={`text-asset-tag-${row._idx}`} style={{ fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setEditingCell({ rowIdx: row._idx, field: 'assetTag' })}>{row.assetTag || <span className="italic text-[12px] font-normal" style={{ color: c.tx3, opacity: 0.6 }}>Tap to edit</span>}</span>
+                                  )}
                                   {isDupe && <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>Dup</span>}
                                   {row.warning ? (row.valid ? <AlertTriangle className="w-3.5 h-3.5 text-[#F5A623] flex-shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 text-[#E53935] flex-shrink-0" />) : <CheckCircle className="w-3.5 h-3.5 text-[#4CAF50] flex-shrink-0" />}
                                 </div>
-                                <div className="text-[11px] truncate mt-0.5" style={{ color: c.tx3 }}>{[row.mainFolder, row.subFolder].filter(Boolean).join(' / ') || 'No folder'}</div>
+                                {editingCell && editingCell.rowIdx === row._idx && editingCell.field === 'folders' ? (
+                                  <div className="flex gap-1 mt-1">
+                                    <input autoFocus className="flex-1 rounded px-1.5 py-0.5 text-[11px] outline-none" style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx }} defaultValue={row.mainFolder} placeholder="Main folder" onKeyDown={(e) => { if (e.key === 'Enter') { handleEditCell(row._idx, 'mainFolder', (e.target as HTMLInputElement).value); } if (e.key === 'Escape') setEditingCell(null); }} onBlur={(e) => { handleEditCell(row._idx, 'mainFolder', e.target.value); }} />
+                                    <input className="flex-1 rounded px-1.5 py-0.5 text-[11px] outline-none" style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx }} defaultValue={row.subFolder} placeholder="Sub folder" onKeyDown={(e) => { if (e.key === 'Enter') handleEditCell(row._idx, 'subFolder', (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCell(null); }} onBlur={(e) => handleEditCell(row._idx, 'subFolder', e.target.value)} />
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] truncate mt-0.5 cursor-pointer" style={{ color: c.tx3 }} onClick={() => setEditingCell({ rowIdx: row._idx, field: 'folders' })}>
+                                    {[row.mainFolder, row.subFolder].filter(Boolean).join(' / ') || <span className="italic" style={{ opacity: 0.6 }}>Tap to add folders</span>}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <button data-testid={`button-delete-row-${row._idx}`} className="p-1.5 rounded flex-shrink-0" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)}><Trash2 className="w-3.5 h-3.5" /></button>
@@ -1014,6 +1027,7 @@ export default function Home() {
                                   className="w-full rounded px-1.5 py-0.5 text-[13px] outline-none"
                                   style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit' }}
                                   defaultValue={value}
+                                  placeholder={field === 'assetTag' ? 'Enter asset tag' : field === 'mainFolder' ? 'Enter main folder' : 'Enter sub folder'}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') handleEditCell(row._idx, field, (e.target as HTMLInputElement).value);
                                     if (e.key === 'Escape') setEditingCell(null);
@@ -1023,8 +1037,12 @@ export default function Home() {
                               );
                             }
                             return (
-                              <div className="group/cell flex items-center gap-1 cursor-text" onDoubleClick={() => setEditingCell({ rowIdx: row._idx, field })}>
-                                <span style={{ color: value ? c.tx2 : c.tx3, fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit' }}>{value || '—'}</span>
+                              <div className="group/cell flex items-center gap-1 cursor-pointer min-w-[60px] min-h-[24px] rounded px-1 -mx-1 transition-colors hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setEditingCell({ rowIdx: row._idx, field })} data-testid={`cell-${field}-${row._idx}`}>
+                                {value ? (
+                                  <span style={{ color: c.tx2, fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit' }}>{value}</span>
+                                ) : (
+                                  <span className="italic text-[12px]" style={{ color: c.tx3, opacity: 0.6 }}>Click to edit</span>
+                                )}
                                 <Pencil className="w-3 h-3 opacity-0 group-hover/cell:opacity-40 flex-shrink-0" style={{ color: c.tx3 }} />
                               </div>
                             );
