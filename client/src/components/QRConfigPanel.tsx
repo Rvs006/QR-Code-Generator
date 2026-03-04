@@ -96,24 +96,30 @@ export default function QRConfigPanel({
             <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>QR Code</div>
             <div className="space-y-3">
               <div>
-                <label className="text-[12px] font-semibold flex items-center gap-1.5 mb-1.5" style={{ color: c.tx2 }}>Error Correction</label>
+                <label className="text-[12px] font-semibold flex items-center gap-1.5 mb-0.5" style={{ color: c.tx2 }}>Error Correction</label>
+                <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Higher levels make the QR code scannable even if partially damaged, but increase QR size.</div>
                 <select data-testid="select-ec" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.ec} onChange={(e) => handleUpdateConfig('ec', e.target.value)}>
                   {Object.entries(EC_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Module Size</label>
+                  <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Module Size</label>
+                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Size of each QR square, auto-calculated to fit your label.</div>
                   <div className="w-full rounded-lg px-3 py-2 text-[13px]" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx3 }}>Auto: {computedModSize}px</div>
                 </div>
                 <div>
-                  <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Quiet Zone</label>
+                  <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Quiet Zone</label>
+                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Blank margin around the QR code (in modules) so scanners can detect the edges.</div>
                   <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.quiet} onChange={(e) => handleUpdateConfig('quiet', parseInt(e.target.value) || 0)} />
                 </div>
               </div>
               <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
-                <span className="text-[13px]" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
-                <button data-testid="button-pixel-perfect" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
+                <div>
+                  <span className="text-[13px] block" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
+                  <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Aligns QR pixels to exact screen pixels for sharper output.</span>
+                </div>
+                <button data-testid="button-pixel-perfect" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
                   <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.pixelPerfect ? '22px' : '3px' }} />
                 </button>
               </div>
@@ -124,35 +130,40 @@ export default function QRConfigPanel({
             <div className="text-[11px] font-bold uppercase tracking-wider pb-2 mb-3" style={{ color: c.tx3, borderBottom: `1px solid ${c.bdr}` }}>Label & Print</div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {[['labelW', 'Width (mm)'], ['labelH', 'Height (mm)']].map(([key, label]) => (
+                {[['labelW', 'Width (mm)', 'Physical width of the printed label.'], ['labelH', 'Height (mm)', 'Physical height of the printed label.']].map(([key, label, hint]) => (
                   <div key={key}>
-                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
+                    <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>{label}</label>
+                    <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>{hint}</div>
                     <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
                   </div>
                 ))}
               </div>
               <div>
-                <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Print DPI</label>
+                <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Print DPI</label>
+                <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Dots per inch — higher means sharper but larger file size.</div>
                 <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.dpi} onChange={(e) => handleUpdateConfig('dpi', parseInt(e.target.value))}>
                   <option value={150}>150 DPI (Draft)</option><option value={300}>300 DPI (Standard)</option><option value={600}>600 DPI (High Quality)</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {[['fontTag', 'Tag Font (pt)'], ['fontPath', 'Path Font (pt)']].map(([key, label]) => (
+                {[['fontTag', 'Tag Font (pt)', 'Font size of the asset tag text on the label.'], ['fontPath', 'Path Font (pt)', 'Font size of the folder path text below the tag.']].map(([key, label, hint]) => (
                   <div key={key}>
-                    <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>{label}</label>
+                    <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>{label}</label>
+                    <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>{hint}</div>
                     <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
                   </div>
                 ))}
               </div>
               <div>
-                <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>Image Format</label>
+                <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Image Format</label>
+                <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>PNG for raster output, SVG for scalable vector output.</div>
                 <select className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.format} onChange={(e) => handleUpdateConfig('format', e.target.value)}>
                   <option value="png">PNG</option><option value="svg">SVG</option>
                 </select>
               </div>
               <div>
-                <label className="text-[12px] font-semibold mb-1.5 block" style={{ color: c.tx2 }}>PDF Paper Size</label>
+                <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Paper Size</label>
+                <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Page size used for PDF export and printing label sheets.</div>
                 <select data-testid="select-paper-size" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)}>
                   {Object.entries(PAPER_SIZES).map(([key, ps]) => <option key={key} value={key}>{ps.name}</option>)}
                 </select>

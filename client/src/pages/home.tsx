@@ -857,6 +857,8 @@ export default function Home() {
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {showPresetDropdown && (
+              <>
+              <div className="fixed inset-0 z-[49]" onClick={() => setShowPresetDropdown(false)} />
               <div className="absolute right-0 top-full mt-1 w-52 rounded-lg shadow-2xl overflow-hidden z-50" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
                 {Object.entries(PRESETS).map(([key, preset]) => (
                   <button key={key} data-testid={`button-preset-${key}`} className="w-full text-left px-3 py-2.5 transition-colors" onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => handleSelectPreset(key)}>
@@ -889,6 +891,7 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+              </>
             )}
           </div>
 
@@ -1282,13 +1285,15 @@ export default function Home() {
                   </div>
                   <div className={`flex items-center gap-1.5 ${isMobile ? 'flex-wrap' : ''}`}>
                     <button data-testid="button-download-zip" className={`flex items-center gap-1.5 bg-[#4CAF50] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#388E3C')} onMouseLeave={(e) => (e.currentTarget.style.background = '#4CAF50')} onClick={handleDownloadZip}><Download className="w-4 h-4" />{!isMobile && 'ZIP'}</button>
+                    {!isMobile && <div className="w-px h-5 mx-0.5" style={{ background: c.bdr }} />}
                     <div className="flex items-center">
                       <button data-testid="button-download-pdf" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-l-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={handleDownloadPDF}><FileText className="w-4 h-4" />{!isMobile && 'PDF'}</button>
-                      <select data-testid="select-export-paper-size" className="bg-[#1B3F6F] text-white text-[11px] font-semibold rounded-r-lg border-l border-white/20 outline-none cursor-pointer" style={{ padding: isMobile ? '6px 4px 6px 2px' : '8px 6px 8px 4px' }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)} title="PDF paper size">
+                      <select data-testid="select-export-paper-size" className="bg-[#1B3F6F] text-white text-[11px] font-semibold border-l border-white/20 outline-none cursor-pointer" style={{ padding: isMobile ? '6px 4px 6px 2px' : '8px 6px 8px 4px' }} value={config.paperSize} onChange={(e) => handleUpdateConfig('paperSize', e.target.value)} title="Paper size for PDF and Print">
                         {Object.entries(PAPER_SIZES).map(([key, ps]) => <option key={key} value={key}>{key.toUpperCase()}</option>)}
                       </select>
+                      <button data-testid="button-print" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-r-lg font-semibold text-[13px] transition-colors`} style={{ background: d ? '#1B3F6F' : '#3d6db5', color: 'white' }} onMouseEnter={(e) => (e.currentTarget.style.background = d ? '#153055' : '#2A5A9E')} onMouseLeave={(e) => (e.currentTarget.style.background = d ? '#1B3F6F' : '#3d6db5')} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
                     </div>
-                    <button data-testid="button-print" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
+                    {!isMobile && <div className="w-px h-5 mx-0.5" style={{ background: c.bdr }} />}
                     <button data-testid="button-verify" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />{!isMobile && 'Verify'}</button>
                     <button data-testid="button-folder-tree" className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-[13px] transition-colors`} style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />{!isMobile && 'Folders'}</button>
                     <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Edit Data'}</button>
@@ -1380,7 +1385,7 @@ export default function Home() {
       {showScanViewer && galleryItems[scanIndex] && (() => {
         const item = galleryItems[scanIndex];
         return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)' }} onClick={(e) => { if (e.target === e.currentTarget) setShowScanViewer(false); }}>
+        <div className="fixed inset-0 z-[300] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.92)' }} onClick={(e) => { if (e.target === e.currentTarget) setShowScanViewer(false); }}>
           <div className={`bg-white rounded-2xl ${isMobile ? 'max-w-full w-[95%]' : 'max-w-[460px] w-[92%]'} relative`} style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }}>
             <button data-testid="button-close-scan" className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 transition-colors z-10" onMouseEnter={(e) => { e.currentTarget.style.background = '#f0f0f0'; e.currentTarget.style.color = '#111'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#999'; }} onClick={() => setShowScanViewer(false)}><X className="w-5 h-5" /></button>
 
