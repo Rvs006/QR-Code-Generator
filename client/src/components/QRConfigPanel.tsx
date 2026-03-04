@@ -1,4 +1,4 @@
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Info } from 'lucide-react';
 import type { QRConfig, GeneratedQR } from '@/lib/qr-renderer';
 
 interface RowData {
@@ -80,6 +80,13 @@ export default function QRConfigPanel({
           <button data-testid="button-close-config" aria-label="Close settings" className="p-1.5 rounded-lg" style={{ color: c.tx3 }} onClick={() => setShowConfig(false)}><X className="w-4 h-4" /></button>
         </div>
         <div className="p-5 space-y-5">
+          <div className="rounded-xl px-4 py-3 flex items-start gap-2.5" style={{ background: d ? 'rgba(0,176,240,0.08)' : 'rgba(42,90,158,0.05)', border: `1px solid ${d ? 'rgba(0,176,240,0.15)' : 'rgba(42,90,158,0.1)'}` }}>
+            <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#2A5A9E]" />
+            <div className="text-[12px] leading-relaxed" style={{ color: c.tx2 }}>
+              <strong style={{ color: c.tx }}>What is this?</strong> These settings control how your QR code labels look and print. Start with a preset below, then fine-tune individual settings if needed. Changes apply to all labels when you generate.
+            </div>
+          </div>
+
           <div>
             <label className="text-[11px] font-semibold uppercase tracking-wider block mb-2" style={{ color: c.tx3 }}>Preset</label>
             <div className="flex gap-2">
@@ -110,7 +117,7 @@ export default function QRConfigPanel({
                 </div>
                 <div>
                   <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Quiet Zone</label>
-                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Blank margin around the QR code (in modules) so scanners can detect the edges.</div>
+                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>The empty white border around the QR code. Scanners need this space to find where the code starts. The number is how many "squares" wide the border is. Default is 4 — increase if labels are on dark backgrounds, decrease to save space on small labels.</div>
                   <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.quiet} onChange={(e) => handleUpdateConfig('quiet', parseInt(e.target.value) || 0)} />
                 </div>
               </div>
