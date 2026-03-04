@@ -16,16 +16,17 @@ export default function AppIcon({ size = 36, isDark = false }: AppIconProps) {
         src={isDark ? qrIconDark : qrIconLight}
         alt="Electracom QR"
         className="w-full h-full object-contain"
+        style={{
+          filter: isDark
+            ? 'brightness(0) invert(1) brightness(0.85)'
+            : 'brightness(0)',
+        }}
       />
       <div
         className="absolute left-[15%] right-[15%] h-[2px] rounded-full"
         style={{
-          background: isDark
-            ? 'rgba(100,200,255,0.6)'
-            : 'rgba(0,176,240,0.5)',
-          boxShadow: isDark
-            ? '0 0 6px 1px rgba(100,200,255,0.4)'
-            : '0 0 6px 1px rgba(0,176,240,0.3)',
+          background: '#2A5A9E',
+          boxShadow: '0 0 8px 2px rgba(42,90,158,0.5)',
           animation: 'scanLine 2.4s ease-in-out infinite',
         }}
       />
