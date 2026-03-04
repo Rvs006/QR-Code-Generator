@@ -1154,14 +1154,14 @@ export default function Home() {
                     <button data-testid="button-print" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
                     <button data-testid="button-verify" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />{!isMobile && 'Verify'}</button>
                     <button data-testid="button-folder-tree" className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-[13px] transition-colors`} style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />{!isMobile && 'Folders'}</button>
-                    <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Re-generate'}</button>
+                    <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Edit Data'}</button>
                   </div>
                 </div>
 
                 {!isMobile && <div className="flex items-center gap-2 mb-4 px-1">
                   <Settings className="w-3.5 h-3.5" style={{ color: c.tx3 }} />
                   <span className="text-[12px]" style={{ color: c.tx3 }}>{configSummary}</span>
-                  <button className="text-[12px] text-[#00B0F0]" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => { setShowConfig(true); }}>Edit & re-generate</button>
+                  <button className="text-[12px] text-[#00B0F0]" onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')} onClick={() => { setShowConfig(true); }}>QR Config</button>
                 </div>}
 
                 <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? Math.min(Math.max(config.labelW * 1.8, 100), 140) : Math.min(Math.max(config.labelW * 2.2, 120), 200)}px, 1fr))` }}>
