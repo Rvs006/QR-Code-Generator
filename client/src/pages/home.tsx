@@ -870,15 +870,59 @@ export default function Home() {
       <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #00B0F0, #F5A623, #4CAF50, #9C27B0, #E53935)' }} />
 
       <header className={`sticky top-0 z-50 backdrop-blur-xl ${isMobile ? 'px-3 py-2' : 'px-6 py-3'} flex items-center gap-3`} style={{ background: d ? 'rgba(14,18,25,0.95)' : 'rgba(255,255,255,0.95)', borderBottom: `1px solid ${c.bdr}` }}>
-        <div className="flex items-center gap-2 min-w-0 cursor-pointer" data-testid="img-logo" onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home">
+        <div className="flex items-center gap-2 min-w-0 cursor-pointer" data-testid="img-logo" onClick={() => { genCancelRef.current = true; setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Return to home">
           <AppIcon size={isMobile ? 32 : 40} isDark={d} />
           <img src={logoPath} alt="Electracom" className={`${isMobile ? 'h-9' : 'h-12'} object-contain flex-shrink-0`} style={{ filter: d ? 'brightness(1.8)' : 'none' }} />
         </div>
 
+        {appState !== 'empty' && (
+          <div className={`flex items-center ${isMobile ? 'gap-1 ml-2' : 'gap-1 ml-3'}`}>
+            <button
+              data-testid="breadcrumb-home"
+              className={`flex items-center gap-1 ${isMobile ? 'text-[11px]' : 'text-[12px]'} font-medium transition-colors rounded px-1.5 py-0.5`}
+              style={{ color: c.tx3 }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#2A5A9E'; e.currentTarget.style.background = c.bg2; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = c.tx3; e.currentTarget.style.background = 'transparent'; }}
+              onClick={() => { genCancelRef.current = true; setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }}
+            >
+              <HomeIcon className="w-3 h-3" />
+              {!isMobile && 'Home'}
+            </button>
+            {(appState === 'loaded' || appState === 'generating' || appState === 'results') && (
+              <>
+                <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: c.tx3 }} />
+                <button
+                  data-testid="breadcrumb-data"
+                  className={`${isMobile ? 'text-[11px]' : 'text-[12px]'} font-medium transition-colors rounded px-1.5 py-0.5`}
+                  style={{ color: appState === 'loaded' ? c.tx : c.tx3 }}
+                  onMouseEnter={(e) => { if (appState !== 'loaded') { e.currentTarget.style.color = '#2A5A9E'; e.currentTarget.style.background = c.bg2; } }}
+                  onMouseLeave={(e) => { if (appState !== 'loaded') { e.currentTarget.style.color = c.tx3; e.currentTarget.style.background = 'transparent'; } }}
+                  onClick={() => { if (appState !== 'loaded') { genCancelRef.current = true; setAppState('loaded'); setGeneratedImages([]); setGalleryPage(0); } }}
+                >
+                  {isMobile ? 'Data' : 'Data Table'}
+                </button>
+              </>
+            )}
+            {appState === 'generating' && (
+              <>
+                <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: c.tx3 }} />
+                <span className={`${isMobile ? 'text-[11px]' : 'text-[12px]'} font-medium px-1.5 py-0.5`} style={{ color: c.tx }}>
+                  Generating...
+                </span>
+              </>
+            )}
+            {appState === 'results' && (
+              <>
+                <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ color: c.tx3 }} />
+                <span data-testid="breadcrumb-results" className={`${isMobile ? 'text-[11px]' : 'text-[12px]'} font-medium px-1.5 py-0.5`} style={{ color: c.tx }}>
+                  Results
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         <div className={`ml-auto flex items-center ${isMobile ? 'gap-0.5' : 'gap-1.5'}`}>
-          {appState !== 'empty' && (
-            <button data-testid="button-home" aria-label="Home" className={`${isMobile ? 'p-1.5' : 'p-2'} rounded-lg transition-colors`} style={{ color: c.tx3 }} onMouseEnter={(e) => { e.currentTarget.style.background = c.bg2; e.currentTarget.style.color = '#2A5A9E'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = c.tx3; }} onClick={() => { setAppState('empty'); setGeneratedImages([]); setGalleryPage(0); if (rows.length > 0) setShowSessionBanner(true); }} title="Home"><HomeIcon className={`${isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /></button>
-          )}
           <button data-testid="button-settings" aria-label="Settings" className="p-2 rounded-lg transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.background = c.bg2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')} onClick={() => setShowConfig(true)} title="Settings"><Settings className="w-4 h-4" /></button>
 
           {!isMobile && <div className="relative">
