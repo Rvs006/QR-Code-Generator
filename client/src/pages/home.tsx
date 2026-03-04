@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon, Menu, Columns } from 'lucide-react';
+import { Upload, FileSpreadsheet, ChevronDown, ChevronRight, Settings, HelpCircle, Clock, X, Check, AlertTriangle, AlertCircle, Search, QrCode, Download, Printer, ScanLine, RotateCcw, ChevronLeft, Copy, ArrowUpDown, Zap, Sun, Moon, Info, FileText, Trash2, ExternalLink, Shield, FolderOpen, File, Folder, CheckCircle, XCircle, Smartphone, ArrowLeft, ArrowRight, Pencil, Plus, Type, Home as HomeIcon, Menu, Columns, Maximize2, Navigation } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import GuidedTour, { isTourCompleted, resetTour, type TourStep } from '@/components/GuidedTour';
 import { renderQR, estimateModuleSize, type QRConfig, type GeneratedQR } from '@/lib/qr-renderer';
 import { parseFile, parseFileRaw, applyMapping, autoMapColumns, partialAutoMapColumns, type ParsedRow, type RawFileData } from '@/lib/file-parser';
 import { exportToZip } from '@/lib/zip-exporter';
@@ -162,6 +163,8 @@ export default function Home() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [pendingRows, setPendingRows] = useState<RowData[]>([]);
   const [duplicateGroups, setDuplicateGroups] = useState<Record<string, number>>({});
+  const [dupeSearchQuery, setDupeSearchQuery] = useState('');
+  const [dupeHoverAction, setDupeHoverAction] = useState<string | null>(null);
   const [showColumnMapper, setShowColumnMapper] = useState(false);
   const [rawFileData, setRawFileData] = useState<RawFileData | null>(null);
   const [columnMapping, setColumnMapping] = useState<Record<string, number | undefined>>({ mainFolder: undefined, subFolder: undefined, assetTag: undefined, payload: undefined });
@@ -180,6 +183,43 @@ export default function Home() {
   const [exportProgress, setExportProgress] = useState<string | null>(null);
   const genCancelRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [tourActive, setTourActive] = useState(false);
+  const [tourPhase, setTourPhase] = useState<'landing' | 'loaded' | 'results'>('landing');
+
+  const TOUR_STEPS: Record<string, TourStep[]> = {
+    landing: [
+      { target: 'dropzone', title: 'Upload Your Data', description: 'Drop an Excel (.xlsx), CSV, or PDF file here with your asset data. The app expects 4 columns: Main Folder, Sub-Folder, Asset Tag, and Payload.', position: 'bottom' },
+      { target: 'button-load-demo', title: 'Try Demo Data', description: 'Not ready to upload? Load sample data with 12 assets to explore all features without needing a file.', position: 'bottom' },
+      { target: 'button-preset-dropdown', title: 'Choose a Preset', description: 'Pick a QR label preset: Quick Draft for fast testing, Indoor Standard for office labels, or Outdoor Harsh for weatherproof labels.', position: 'bottom' },
+      { target: 'button-settings', title: 'Customize Settings', description: 'Fine-tune label size, DPI, error correction level, PDF paper size, and other QR code parameters.', position: 'bottom' },
+      { target: 'button-theme-toggle', title: 'Light / Dark Mode', description: 'Switch between light and dark themes to suit your preference.', position: 'bottom' },
+    ],
+    loaded: [
+      { target: 'data-table-area', title: 'Review Your Assets', description: 'Your imported data appears here. Click any cell to edit it directly — asset tags, folder paths, and payloads are all editable.', position: 'top' },
+      { target: 'button-payload-template', title: 'QR Data Template', description: 'Customize what data gets encoded inside each QR code. Use variables like {assetTag} and {mainFolder} to build structured payloads.', position: 'bottom' },
+      { target: 'button-generate', title: 'Generate QR Codes', description: 'Click here to generate ISO/IEC 18004 compliant QR codes for all rows, or select specific rows first to generate only those.', position: 'top' },
+    ],
+    results: [
+      { target: 'button-download-zip', title: 'Download as ZIP', description: 'Export all QR code images organized in a folder structure matching your Main Folder / Sub-Folder hierarchy.', position: 'bottom' },
+      { target: 'button-download-pdf', title: 'Download as PDF', description: 'Generate a print-ready PDF with labels arranged on your chosen paper size. Use the dropdown next to this button to pick the paper size.', position: 'bottom' },
+      { target: 'button-print', title: 'Print Labels', description: 'Print your QR code labels directly from the browser — no download needed.', position: 'bottom' },
+    ],
+  };
+
+  useEffect(() => {
+    if (appState === 'empty' && !isTourCompleted('ec-tour-landing')) {
+      setTimeout(() => { setTourPhase('landing'); setTourActive(true); }, 800);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (appState === 'loaded' && !isTourCompleted('ec-tour-loaded')) {
+      setTimeout(() => { setTourPhase('loaded'); setTourActive(true); }, 500);
+    }
+    if (appState === 'results' && !isTourCompleted('ec-tour-results')) {
+      setTimeout(() => { setTourPhase('results'); setTourActive(true); }, 500);
+    }
+  }, [appState]);
 
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -342,6 +382,21 @@ export default function Home() {
       seen.add(tag);
       return true;
     });
+    finalizeLoadRows(validateRows(deduped), lastLoadedFileName);
+    setShowDuplicateModal(false);
+    setPendingRows([]);
+    setDuplicateGroups({});
+  };
+
+  const handleDuplicateKeepLast = () => {
+    const seen = new Set<string>();
+    const deduped = [...pendingRows].reverse().filter(r => {
+      const tag = r.assetTag.trim();
+      if (!tag) return true;
+      if (seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    }).reverse();
     finalizeLoadRows(validateRows(deduped), lastLoadedFileName);
     setShowDuplicateModal(false);
     setPendingRows([]);
@@ -909,6 +964,9 @@ export default function Home() {
             <button className="mt-2 flex items-center gap-2 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#00B0F0')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={() => setShowHowItWorks(true)}>
               <Info className="w-4 h-4" />How it works
             </button>
+            <button data-testid="button-take-tour" className="mt-1 flex items-center gap-2 text-[13px] transition-colors" style={{ color: c.tx3 }} onMouseEnter={(e) => (e.currentTarget.style.color = '#00B0F0')} onMouseLeave={(e) => (e.currentTarget.style.color = c.tx3)} onClick={() => { const phase = appState === 'results' ? 'results' : appState === 'loaded' ? 'loaded' : 'landing'; resetTour(`ec-tour-${phase}`); setTourPhase(phase); setTourActive(true); }}>
+              <Navigation className="w-4 h-4" />Take a tour
+            </button>
           </div>
         )}
 
@@ -985,15 +1043,36 @@ export default function Home() {
                             </div>
                             <button data-testid={`button-delete-row-${row._idx}`} className="p-1.5 rounded flex-shrink-0" style={{ color: '#E53935' }} onClick={() => handleDeleteRow(row._idx)}><Trash2 className="w-3.5 h-3.5" /></button>
                           </div>
-                          <button data-testid={`button-payload-${row._idx}`} className="text-[11px] px-2 py-1 rounded mt-2 truncate w-full text-left block" style={{ background: c.bg3, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setShowPayloadModal(row)}>
-                            {row.payload ? row.payload.substring(0, 50) + (row.payload.length > 50 ? '...' : '') : '(empty payload)'}
-                          </button>
+                          {editingCell && editingCell.rowIdx === row._idx && editingCell.field === 'payload' ? (
+                            <textarea
+                              autoFocus
+                              data-testid={`input-edit-payload-${row._idx}`}
+                              className="w-full rounded px-2 py-1.5 text-[11px] outline-none resize-none mt-2"
+                              style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: "'JetBrains Mono', monospace", minHeight: '50px' }}
+                              defaultValue={row.payload}
+                              placeholder="Enter payload data..."
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditCell(row._idx, 'payload', (e.target as HTMLTextAreaElement).value); }
+                                if (e.key === 'Escape') setEditingCell(null);
+                              }}
+                              onBlur={(e) => handleEditCell(row._idx, 'payload', e.target.value)}
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1 mt-2" data-testid={`cell-payload-${row._idx}`} onClick={() => setEditingCell({ rowIdx: row._idx, field: 'payload' })}>
+                              <span className="text-[11px] px-2 py-1 rounded truncate flex-1 text-left cursor-pointer" style={{ background: c.bg3, color: row.payload ? '#00B0F0' : c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>
+                                {row.payload ? row.payload.substring(0, 50) + (row.payload.length > 50 ? '...' : '') : <span className="italic" style={{ opacity: 0.6 }}>Tap to edit payload</span>}
+                              </span>
+                              {row.payload && (
+                                <button className="p-1 rounded flex-shrink-0" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); setShowPayloadModal(row); }} title="Expand"><Maximize2 className="w-3 h-3" /></button>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
                 ) : (
-                <div className="rounded-xl overflow-hidden mb-4" style={{ border: `1px solid ${c.bdr}` }}>
+                <div data-testid="data-table-area" className="rounded-xl overflow-hidden mb-4" style={{ border: `1px solid ${c.bdr}` }}>
                   <div className="overflow-x-auto">
                     <table className="w-full text-[13px]">
                       <thead>
@@ -1061,9 +1140,30 @@ export default function Home() {
                               </div>
                             </td>
                             <td className="px-3 py-2">
-                              <button data-testid={`button-payload-${row._idx}`} className="text-[12px] px-2 py-1 rounded transition-colors truncate max-w-[200px] block" style={{ background: c.bg3, color: '#00B0F0', fontFamily: "'JetBrains Mono', monospace" }} onClick={() => setShowPayloadModal(row)}>
-                                {row.payload ? row.payload.substring(0, 40) + (row.payload.length > 40 ? '...' : '') : '(empty)'}
-                              </button>
+                              {editingCell && editingCell.rowIdx === row._idx && editingCell.field === 'payload' ? (
+                                <textarea
+                                  autoFocus
+                                  data-testid={`input-edit-payload-${row._idx}`}
+                                  className="w-full rounded px-2 py-1.5 text-[12px] outline-none resize-none"
+                                  style={{ background: c.bg, border: `1px solid #2A5A9E`, color: c.tx, fontFamily: "'JetBrains Mono', monospace", minHeight: '60px', maxWidth: '250px' }}
+                                  defaultValue={row.payload}
+                                  placeholder="Enter payload data..."
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditCell(row._idx, 'payload', (e.target as HTMLTextAreaElement).value); }
+                                    if (e.key === 'Escape') setEditingCell(null);
+                                  }}
+                                  onBlur={(e) => handleEditCell(row._idx, 'payload', e.target.value)}
+                                />
+                              ) : (
+                                <div className="flex items-center gap-1 group/payload">
+                                  <div className="cursor-pointer rounded px-2 py-1 text-[12px] truncate max-w-[180px] transition-colors hover:bg-black/5 dark:hover:bg-white/5" style={{ fontFamily: "'JetBrains Mono', monospace", color: row.payload ? '#00B0F0' : c.tx3 }} onClick={() => setEditingCell({ rowIdx: row._idx, field: 'payload' })} data-testid={`cell-payload-${row._idx}`}>
+                                    {row.payload ? row.payload.substring(0, 35) + (row.payload.length > 35 ? '...' : '') : <span className="italic text-[11px]" style={{ opacity: 0.6 }}>Click to edit</span>}
+                                  </div>
+                                  {row.payload && (
+                                    <button className="p-0.5 rounded opacity-0 group-hover/payload:opacity-60 transition-opacity" style={{ color: c.tx3 }} onClick={() => setShowPayloadModal(row)} title="Expand payload"><Maximize2 className="w-3 h-3" /></button>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="px-3 py-2">
                               {row.warning ? (
@@ -1565,10 +1665,25 @@ export default function Home() {
         </div>
       )}
 
-      {showDuplicateModal && (
+      {showDuplicateModal && (() => {
+        const totalRows = pendingRows.length;
+        const dupeTagCount = Object.keys(duplicateGroups).length;
+        const totalDupeRows = Object.values(duplicateGroups).reduce((s, c) => s + c, 0);
+        const uniqueCount = totalRows - totalDupeRows + dupeTagCount;
+        const removedIfDeduped = totalRows - uniqueCount;
+        const filteredDupes = dupeSearchQuery
+          ? Object.entries(duplicateGroups).filter(([tag]) => tag.toLowerCase().includes(dupeSearchQuery.toLowerCase()))
+          : Object.entries(duplicateGroups);
+        const getSeverity = (count: number) => count > 50 ? 'heavy' : count > 5 ? 'moderate' : 'mild';
+        const severityStyles: Record<string, { bg: string; border: string; badge: string; badgeColor: string }> = {
+          mild: { bg: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)', badge: 'rgba(245,166,35,0.15)', badgeColor: '#F5A623' },
+          moderate: { bg: 'rgba(255,152,0,0.1)', border: '1px solid rgba(255,152,0,0.3)', badge: 'rgba(255,152,0,0.2)', badgeColor: '#FF9800' },
+          heavy: { bg: 'rgba(229,57,53,0.08)', border: '1px solid rgba(229,57,53,0.25)', badge: 'rgba(229,57,53,0.15)', badgeColor: '#E53935' },
+        };
+        return (
         <div className="fixed inset-0 z-[250] flex items-center justify-center">
           <div className="absolute inset-0 backdrop-blur-sm" style={{ background: d ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.3)' }} onClick={handleDuplicateCancel} />
-          <div className="relative rounded-2xl max-w-md w-[90%] p-6 shadow-2xl" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
+          <div className="relative rounded-2xl max-w-md w-[90%] p-6 shadow-2xl max-h-[90vh] overflow-y-auto" style={{ background: c.bg1, border: `1px solid ${c.bdr}` }}>
             <button className="absolute top-4 right-4 p-1" style={{ color: c.tx3 }} onClick={handleDuplicateCancel}><X className="w-4 h-4" /></button>
             <div className="flex items-center gap-3 mb-4">
               <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'rgba(245,166,35,0.15)' }}>
@@ -1576,16 +1691,38 @@ export default function Home() {
               </div>
               <div>
                 <h3 className="text-[16px] font-bold">Duplicate Asset Tags Found</h3>
-                <p className="text-[13px]" style={{ color: c.tx3 }}>{Object.keys(duplicateGroups).length} tag{Object.keys(duplicateGroups).length > 1 ? 's' : ''} appear more than once</p>
+                <p className="text-[13px]" style={{ color: c.tx3 }}>{dupeTagCount} tag{dupeTagCount > 1 ? 's' : ''} appear more than once</p>
               </div>
             </div>
-            <div className="rounded-xl p-3 mb-4 max-h-[200px] overflow-y-auto space-y-2" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
-              {Object.entries(duplicateGroups).map(([tag, count]) => (
-                <div key={tag} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.2)' }}>
-                  <span className="text-[13px] font-semibold" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{tag}</span>
-                  <span className="text-[12px] px-2 py-0.5 rounded-full font-semibold" style={{ background: 'rgba(245,166,35,0.15)', color: '#F5A623' }}>×{count}</span>
+            <div className="flex items-center gap-3 text-[12px] mb-3 px-1" style={{ color: c.tx2 }}>
+              <span><strong>{totalRows}</strong> total rows</span>
+              <span style={{ color: c.tx3 }}>·</span>
+              <span><strong>{uniqueCount}</strong> unique tags</span>
+              <span style={{ color: c.tx3 }}>·</span>
+              <span style={{ color: '#F5A623' }}><strong>{removedIfDeduped}</strong> would be removed</span>
+            </div>
+            {dupeTagCount > 5 && (
+              <div className="mb-3">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
+                  <input data-testid="input-dupe-search" type="text" placeholder="Search duplicate tags..." className="w-full pl-8 pr-3 py-2 rounded-lg text-[12px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={dupeSearchQuery} onChange={(e) => setDupeSearchQuery(e.target.value)} />
                 </div>
-              ))}
+              </div>
+            )}
+            <div className="rounded-xl p-3 mb-4 max-h-[200px] overflow-y-auto space-y-2" style={{ background: c.bg, border: `1px solid ${c.bdr}` }}>
+              {filteredDupes.map(([tag, count]) => {
+                const sev = getSeverity(count);
+                const ss = severityStyles[sev];
+                return (
+                  <div key={tag} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: ss.bg, border: ss.border }}>
+                    <span className="text-[13px] font-semibold truncate mr-2" style={{ fontFamily: "'JetBrains Mono', monospace" }}>{tag}</span>
+                    <span className="text-[12px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0" style={{ background: ss.badge, color: ss.badgeColor }}>×{count}</span>
+                  </div>
+                );
+              })}
+              {filteredDupes.length === 0 && dupeSearchQuery && (
+                <div className="text-center text-[12px] py-3" style={{ color: c.tx3 }}>No matching tags found</div>
+              )}
             </div>
             <div className="rounded-lg px-3 py-2.5 mb-4 flex items-start gap-2" style={{ background: d ? 'rgba(245,166,35,0.06)' : 'rgba(245,166,35,0.04)', border: `1px solid rgba(245,166,35,0.15)` }}>
               <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[#F5A623]" />
@@ -1593,14 +1730,25 @@ export default function Home() {
                 Your file contains rows with the same Asset Tag name. This can happen when one asset has multiple entries with different data. Choose how to handle them:
               </div>
             </div>
+            {dupeHoverAction && (
+              <div className="text-[11px] mb-2 px-1 font-medium" style={{ color: '#2A5A9E' }}>
+                {dupeHoverAction === 'keepAll' && `Will import all ${totalRows} rows including duplicates`}
+                {dupeHoverAction === 'keepFirst' && `Will remove ${removedIfDeduped} duplicate rows and keep ${uniqueCount} rows`}
+                {dupeHoverAction === 'keepLast' && `Will remove ${removedIfDeduped} duplicate rows and keep ${uniqueCount} rows (last occurrence)`}
+              </div>
+            )}
             <div className="space-y-2 mb-4">
-              <button data-testid="button-dupe-keep-all" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.25)' }} onClick={handleDuplicateKeepAll}>
+              <button data-testid="button-dupe-keep-all" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: 'rgba(245,166,35,0.08)', border: '1px solid rgba(245,166,35,0.25)' }} onClick={handleDuplicateKeepAll} onMouseEnter={() => setDupeHoverAction('keepAll')} onMouseLeave={() => setDupeHoverAction(null)}>
                 <div className="text-[13px] font-semibold mb-0.5" style={{ color: '#F5A623' }}>Keep All Rows</div>
                 <div className="text-[11px]" style={{ color: c.tx3 }}>Import every row, including duplicates. Each will generate its own QR code — useful if duplicate entries have different payloads.</div>
               </button>
-              <button data-testid="button-dupe-keep-first" className="w-full text-left rounded-lg px-4 py-3 transition-colors bg-[#2A5A9E]" onClick={handleDuplicateKeepFirst}>
+              <button data-testid="button-dupe-keep-first" className="w-full text-left rounded-lg px-4 py-3 transition-colors bg-[#2A5A9E]" onClick={handleDuplicateKeepFirst} onMouseEnter={() => setDupeHoverAction('keepFirst')} onMouseLeave={() => setDupeHoverAction(null)}>
                 <div className="text-[13px] font-semibold mb-0.5 text-white">Keep First Only</div>
                 <div className="text-[11px] text-white/70">Remove duplicates and keep only the first occurrence of each Asset Tag. Best when duplicates are accidental.</div>
+              </button>
+              <button data-testid="button-dupe-keep-last" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: d ? 'rgba(42,90,158,0.15)' : 'rgba(42,90,158,0.08)', border: '1px solid rgba(42,90,158,0.25)' }} onClick={handleDuplicateKeepLast} onMouseEnter={() => setDupeHoverAction('keepLast')} onMouseLeave={() => setDupeHoverAction(null)}>
+                <div className="text-[13px] font-semibold mb-0.5" style={{ color: '#2A5A9E' }}>Keep Last Only</div>
+                <div className="text-[11px]" style={{ color: c.tx3 }}>Remove duplicates and keep only the last occurrence of each Asset Tag. Best when the latest entry is the corrected one.</div>
               </button>
               <button data-testid="button-dupe-cancel" className="w-full text-left rounded-lg px-4 py-3 transition-colors" style={{ background: c.bg2, border: `1px solid ${c.bdr}` }} onClick={handleDuplicateCancel}>
                 <div className="text-[13px] font-semibold mb-0.5" style={{ color: c.tx2 }}>Cancel</div>
@@ -1609,7 +1757,8 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {showHelpModal && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center">
@@ -1815,6 +1964,13 @@ export default function Home() {
           <span className="text-[13px] font-medium" style={{ color: c.tx }}>{exportProgress}</span>
         </div>
       )}
+      <GuidedTour
+        steps={TOUR_STEPS[tourPhase] || []}
+        tourKey={`ec-tour-${tourPhase}`}
+        active={tourActive}
+        onComplete={() => setTourActive(false)}
+        onSkip={() => setTourActive(false)}
+      />
     </div>
   );
 }
