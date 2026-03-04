@@ -958,7 +958,7 @@ export default function Home() {
                         <div className="text-[11px]" style={{ color: c.tx3 }}>{f.rows} rows · {f.folders} folders · {formatRecentDate(f.timestamp)}</div>
                       </div>
                     </button>
-                    <button data-testid={`button-dismiss-recent-${f.sessionKey}`} className="p-1 rounded opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity flex-shrink-0" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); removeRecentFile(f.sessionKey); setRecentFiles(getRecentFiles()); setRecentToast('Session removed from history'); setTimeout(() => setRecentToast(null), 2500); }}><X className="w-3 h-3" /></button>
+                    <button data-testid={`button-dismiss-recent-${f.sessionKey}`} className="p-1 rounded opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity flex-shrink-0" style={{ color: c.tx3 }} onClick={(e) => { e.stopPropagation(); removeRecentFile(f.sessionKey); const updated = getRecentFiles(); setRecentFiles(updated); if (updated.length === 0) setShowRecentFiles(false); setRecentToast('Session removed from history'); setTimeout(() => setRecentToast(null), 2500); }}><X className="w-3 h-3" /></button>
                   </div>
                 ))}
               </div>
