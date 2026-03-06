@@ -152,14 +152,45 @@ export default function QRConfigPanel({
                   <option value={150}>150 DPI (Draft)</option><option value={300}>300 DPI (Standard)</option><option value={600}>600 DPI (High Quality)</option>
                 </select>
               </div>
+              <div>
+                <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Font Family</label>
+                <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Font used for the asset tag text on labels.</div>
+                <select data-testid="select-font-family" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.fontFamily || 'Courier New'} onChange={(e) => handleUpdateConfig('fontFamily', e.target.value)}>
+                  <option value="Courier New">Courier New (clean zeros)</option>
+                  <option value="Arial">Arial</option>
+                  <option value="Roboto Mono">Roboto Mono</option>
+                  <option value="JetBrains Mono">JetBrains Mono (slashed zeros)</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
+                <div>
+                  <span className="text-[13px] block" style={{ color: c.tx2 }}>Auto-size tag font</span>
+                  <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Automatically sizes the asset tag text to match the QR code width.</span>
+                </div>
+                <button data-testid="button-font-tag-auto" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.fontTagAuto ? '#4CAF50' : c.bg3, border: config.fontTagAuto ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('fontTagAuto', !config.fontTagAuto)}>
+                  <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.fontTagAuto ? '22px' : '3px' }} />
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3">
-                {[['fontTag', 'Tag Font (pt)', 'Font size of the asset tag text on the label.'], ['fontPath', 'Path Font (pt)', 'Font size of the folder path text below the tag.']].map(([key, label, hint]) => (
-                  <div key={key}>
-                    <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>{label}</label>
-                    <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>{hint}</div>
-                    <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={(config as any)[key]} onChange={(e) => handleUpdateConfig(key, parseInt(e.target.value) || 0)} />
-                  </div>
-                ))}
+                <div>
+                  <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: config.fontTagAuto ? c.tx3 : c.tx2 }}>Tag Font (pt)</label>
+                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>{config.fontTagAuto ? 'Controlled by auto-size.' : 'Manual font size for the asset tag.'}</div>
+                  <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: config.fontTagAuto ? c.tx3 : c.tx, opacity: config.fontTagAuto ? 0.5 : 1 }} value={config.fontTag} disabled={config.fontTagAuto} onChange={(e) => handleUpdateConfig('fontTag', parseInt(e.target.value) || 0)} />
+                </div>
+                <div>
+                  <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Path Font (pt)</label>
+                  <div className="text-[11px] mb-1.5 leading-snug" style={{ color: c.tx3 }}>Font size of the folder path text below the tag.</div>
+                  <input type="number" className="w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: c.bg, border: `1px solid ${c.bdr}`, color: c.tx }} value={config.fontPath} onChange={(e) => handleUpdateConfig('fontPath', parseInt(e.target.value) || 0)} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between rounded-lg px-3 py-2.5" style={{ background: c.bg2 }}>
+                <div>
+                  <span className="text-[13px] block" style={{ color: c.tx2 }}>Show folder path on label</span>
+                  <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Display folder/sub-folder text below the asset tag on each QR image.</span>
+                </div>
+                <button data-testid="button-show-path" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.showPathOnLabel ? '#4CAF50' : c.bg3, border: config.showPathOnLabel ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('showPathOnLabel', !config.showPathOnLabel)}>
+                  <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.showPathOnLabel ? '22px' : '3px' }} />
+                </button>
               </div>
               <div>
                 <label className="text-[12px] font-semibold mb-0.5 block" style={{ color: c.tx2 }}>Image Format</label>
@@ -193,8 +224,8 @@ export default function QRConfigPanel({
                   <div className="w-px flex-1" style={{ background: '#bbb', minHeight: '8px' }} />
                 </div>
                 <img src={generatedImages[0]?.dataURL || previewDataURL} alt="Preview" className="object-contain" style={{ maxWidth: '80%', maxHeight: '60%', imageRendering: 'pixelated' }} />
-                <div className="text-[10px] font-bold text-[#111] mt-1 text-center" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: `${Math.min(config.fontTag, 12) * 0.85}px` }}>{rows.length > 0 ? rows[0].assetTag : 'FCU-199001'}</div>
-                <div className="text-[8px] text-[#888] text-center" style={{ fontSize: `${Math.min(config.fontPath, 9) * 0.8}px` }}>{rows.length > 0 ? [rows[0].mainFolder, rows[0].subFolder].filter(Boolean).join(' / ') : '334OS / EMS'}</div>
+                <div className="text-[10px] font-bold text-[#111] mt-0.5 text-center" style={{ fontFamily: config.fontFamily === 'JetBrains Mono' ? "'JetBrains Mono', monospace" : config.fontFamily === 'Roboto Mono' ? "'Roboto Mono', monospace" : config.fontFamily === 'Arial' ? "Arial, sans-serif" : "'Courier New', monospace", fontSize: config.fontTagAuto ? undefined : `${Math.min(config.fontTag, 12) * 0.85}px` }}>{rows.length > 0 ? rows[0].assetTag : 'FCU-199001'}</div>
+                {config.showPathOnLabel && <div className="text-[8px] text-[#888] text-center" style={{ fontSize: `${Math.min(config.fontPath, 9) * 0.8}px` }}>{rows.length > 0 ? [rows[0].mainFolder, rows[0].subFolder].filter(Boolean).join(' / ') : '334OS / EMS'}</div>}
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 mt-4 text-[10px]" style={{ color: c.tx3, fontFamily: "'JetBrains Mono', monospace" }}>
                 <span>{config.labelW}×{config.labelH}mm</span>

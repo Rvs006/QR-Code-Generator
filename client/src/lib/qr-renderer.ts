@@ -12,6 +12,9 @@ export interface QRConfig {
   format: string;
   pixelPerfect: boolean;
   paperSize: string;
+  showPathOnLabel: boolean;
+  fontFamily: string;
+  fontTagAuto: boolean;
 }
 
 export interface GeneratedQR {
@@ -61,9 +64,9 @@ export function calculateModuleSize(
 
   const tagFontPx = Math.max(fontTag * (dpi / 96), 10);
   const pathFontPx = Math.max(fontPath * (dpi / 96), 8);
-  const textPadding = 8;
-  const tagH = tagFontPx + 4;
-  const pathH = hasPath ? pathFontPx + 4 : 0;
+  const textPadding = 4;
+  const tagH = tagFontPx + 2;
+  const pathH = hasPath ? pathFontPx + 2 : 0;
   const totalTextH = tagH + pathH + textPadding * 2;
 
   const availableH = labelHpx - totalTextH;
@@ -88,7 +91,7 @@ export function estimateModuleSize(config: QRConfig, samplePayloadLength?: numbe
     config.quiet,
     config.fontTag,
     config.fontPath,
-    true
+    !!config.showPathOnLabel
   );
 }
 
@@ -102,7 +105,7 @@ export async function renderQR(
   const ecMap: Record<string, 'L' | 'M' | 'Q' | 'H'> = { L: 'L', M: 'M', Q: 'Q', H: 'H' };
   const errorCorrectionLevel = ecMap[config.ec] || 'M';
   const margin = config.quiet;
-  const hasPath = !!(mainFolder || subFolder);
+  const showPath = !!config.showPathOnLabel && !!(mainFolder || subFolder);
 
   const computedModSize = calculateModuleSize(
     config.labelW,
@@ -113,7 +116,7 @@ export async function renderQR(
     config.quiet,
     config.fontTag,
     config.fontPath,
-    hasPath
+    showPath
   );
 
   const scale = computedModSize;
@@ -131,12 +134,30 @@ export async function renderQR(
   const qrWidth = qrCanvas.width;
   const qrHeight = qrCanvas.height;
 
-  const tagFontSize = Math.max(config.fontTag * (config.dpi / 96), 10);
+  const fontFam = config.fontFamily || "'Courier New', monospace";
+  const fontStack = fontFam.includes(',') ? fontFam : `'${fontFam}', monospace`;
+
+  let tagFontSize = Math.max(config.fontTag * (config.dpi / 96), 10);
   const pathFontSize = Math.max(config.fontPath * (config.dpi / 96), 8);
-  const textPadding = 8;
-  const tagHeight = tagFontSize + 4;
-  const pathText = [mainFolder, subFolder].filter(Boolean).join(' / ');
-  const pathHeight = pathText ? pathFontSize + 4 : 0;
+  const textPadding = 4;
+
+  if (config.fontTagAuto) {
+    const measureCanvas = document.createElement('canvas');
+    const measureCtx = measureCanvas.getContext('2d')!;
+    const targetWidth = qrWidth * 0.92;
+    let lo = 10, hi = qrWidth * 0.3, best = lo;
+    for (let iter = 0; iter < 20; iter++) {
+      const mid = (lo + hi) / 2;
+      measureCtx.font = `bold ${mid}px ${fontStack}`;
+      const w = measureCtx.measureText(assetTag).width;
+      if (w <= targetWidth) { best = mid; lo = mid + 0.5; } else { hi = mid - 0.5; }
+    }
+    tagFontSize = Math.max(best, 10);
+  }
+
+  const tagHeight = tagFontSize + 2;
+  const pathText = showPath ? [mainFolder, subFolder].filter(Boolean).join(' / ') : '';
+  const pathHeight = pathText ? pathFontSize + 2 : 0;
   const totalTextHeight = tagHeight + pathHeight + textPadding * 2;
 
   const finalWidth = qrWidth;
@@ -157,7 +178,7 @@ export async function renderQR(
   ctx.drawImage(qrCanvas, 0, 0);
 
   ctx.fillStyle = '#111111';
-  ctx.font = `bold ${tagFontSize}px 'JetBrains Mono', 'Courier New', monospace`;
+  ctx.font = `bold ${tagFontSize}px ${fontStack}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
   ctx.fillText(assetTag, finalWidth / 2, qrHeight + textPadding, finalWidth - 16);

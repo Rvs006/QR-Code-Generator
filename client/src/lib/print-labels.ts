@@ -26,16 +26,27 @@ export function printLabels(
 
   const labelW = config.labelW;
   const labelH = config.labelH;
-  const tagFontPt = config.fontTag;
-  const pathFontPt = config.fontPath;
 
-  const labelsHTML = itemsToPrint.map(item => {
-    const path = [item.mainFolder, item.subFolder].filter(Boolean).join(' / ');
-    return `
+  const fontFam = config.fontFamily || 'Courier New';
+  const fontCSS = fontFam === 'Arial' ? "Arial, sans-serif" : `'${fontFam}', monospace`;
+
+  const grouped: Record<string, GeneratedQR[]> = {};
+  for (const item of itemsToPrint) {
+    const folder = item.mainFolder || 'Uncategorised';
+    if (!grouped[folder]) grouped[folder] = [];
+    grouped[folder].push(item);
+  }
+
+  const sectionsHTML = Object.entries(grouped).map(([folder, items]) => {
+    const labelsHTML = items.map(item => `
       <div class="label" style="width:${labelW}mm; height:${labelH}mm;">
         <img src="${item.dataURL}" alt="${item.assetTag}" />
-        <div class="tag" style="font-size:${tagFontPt}pt;">${item.assetTag}</div>
-        ${path ? `<div class="path" style="font-size:${pathFontPt}pt;">${path}</div>` : ''}
+      </div>
+    `).join('');
+    return `
+      <div class="folder-group">
+        <div class="folder-header">${folder}</div>
+        <div class="container">${labelsHTML}</div>
       </div>
     `;
   }).join('');
@@ -54,6 +65,21 @@ export function printLabels(
     font-family: 'Helvetica Neue', Arial, sans-serif;
     background: white;
     color: #111;
+  }
+  .folder-group {
+    page-break-before: auto;
+    margin-bottom: 5mm;
+  }
+  .folder-group:not(:first-child) {
+    page-break-before: always;
+  }
+  .folder-header {
+    font-size: 14pt;
+    font-weight: bold;
+    font-family: ${fontCSS};
+    padding-bottom: 3mm;
+    margin-bottom: 3mm;
+    border-bottom: 0.5mm solid #ccc;
   }
   .container {
     display: flex;
@@ -75,29 +101,11 @@ export function printLabels(
   }
   .label img {
     max-width: calc(100% - 2mm);
-    max-height: calc(100% - 10mm);
+    max-height: calc(100% - 2mm);
     object-fit: contain;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
-  }
-  .tag {
-    font-weight: bold;
-    font-family: 'Courier New', monospace;
-    text-align: center;
-    margin-top: 1mm;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-  .path {
-    color: #888;
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
   }
   @media print {
     .label {
@@ -107,9 +115,7 @@ export function printLabels(
 </style>
 </head>
 <body>
-<div class="container">
-${labelsHTML}
-</div>
+${sectionsHTML}
 <script>
   setTimeout(function() { window.print(); }, 600);
 </script>

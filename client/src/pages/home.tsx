@@ -22,9 +22,9 @@ interface RowData extends ParsedRow {
 }
 
 const PRESETS: Record<string, QRConfig & { name: string; desc: string }> = {
-  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 50×30mm labels, 300 DPI, medium error correction', ec: 'M', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 300, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true, paperSize: 'a4' },
-  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 70×40mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 0, quiet: 4, labelW: 70, labelH: 40, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true, paperSize: 'a4' },
-  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 0, quiet: 4, labelW: 50, labelH: 30, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false, paperSize: 'a4' },
+  indoor: { name: 'Indoor Standard', desc: 'Office & server rooms — 100×100mm labels, 600 DPI, medium error correction', ec: 'M', modSize: 0, quiet: 4, labelW: 100, labelH: 100, dpi: 600, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: true, paperSize: 'a4', showPathOnLabel: false, fontFamily: 'Courier New', fontTagAuto: true },
+  outdoor: { name: 'Outdoor Harsh', desc: 'Rooftop & plant rooms — larger 100×100mm labels, 600 DPI, max error correction for dirt/UV damage', ec: 'H', modSize: 0, quiet: 4, labelW: 100, labelH: 100, dpi: 600, fontTag: 12, fontPath: 8, format: 'png', pixelPerfect: true, paperSize: 'a4', showPathOnLabel: false, fontFamily: 'Courier New', fontTagAuto: true },
+  draft: { name: 'Quick Draft', desc: 'Test prints & internal review — small labels, 150 DPI, fastest generation', ec: 'L', modSize: 0, quiet: 4, labelW: 50, labelH: 50, dpi: 150, fontTag: 10, fontPath: 7, format: 'png', pixelPerfect: false, paperSize: 'a4', showPathOnLabel: false, fontFamily: 'Courier New', fontTagAuto: true },
 };
 
 const PAPER_SIZES: Record<string, { name: string; w: number; h: number }> = {
@@ -138,8 +138,8 @@ export default function Home() {
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showRecentFiles, setShowRecentFiles] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-  const [config, setConfig] = useState<QRConfig & { name?: string; desc?: string }>({ ...PRESETS.draft });
-  const [activePreset, setActivePreset] = useState('draft');
+  const [config, setConfig] = useState<QRConfig & { name?: string; desc?: string }>({ ...PRESETS.indoor });
+  const [activePreset, setActivePreset] = useState('indoor');
   const [customPresets, setCustomPresets] = useState<Record<string, QRConfig>>(() => {
     try { return JSON.parse(localStorage.getItem('ec-custom-presets') || '{}'); } catch { return {}; }
   });

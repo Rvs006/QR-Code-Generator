@@ -43,7 +43,7 @@ client/src/
 - Multi-format file import: .xlsx, .xls, .csv, .pdf (drag-and-drop + file picker)
 - **Column mapping modal**: Auto-detects column headers, shows mapping UI when headers don't match expected names. Uses `parseFileRaw()` + `autoMapColumns()` + `applyMapping()` from file-parser.ts
 - DPI-aware QR rendering: module size auto-calculated from label dimensions + DPI + payload
-- Three built-in presets: Indoor Standard (50×30mm/300DPI), Outdoor Harsh (70×40mm/600DPI), Quick Draft (50×30mm/150DPI). Default: Quick Draft. **Custom presets**: Save/load/delete in Settings panel "My Presets" section and header preset dropdown. Stored in `ec-custom-presets` localStorage.
+- Three built-in presets: Indoor Standard (100×100mm/600DPI), Outdoor Harsh (100×100mm/600DPI), Quick Draft (50×50mm/150DPI). Default: Indoor Standard. **Custom presets**: Save/load/delete in Settings panel "My Presets" section and header preset dropdown. Stored in `ec-custom-presets` localStorage.
 - **Editable rows**: Single-click any cell (mainFolder, subFolder, assetTag, payload) to inline-edit. Empty cells show "Click to edit" placeholder. Add/delete rows supported. Re-validates on edit.
 - **Inline payload editing**: Payload column is now directly editable via click (textarea). Long payloads can be expanded via Maximize2 icon. Mobile cards also support tap-to-edit payloads.
 - **Duplicate asset tag detection**: Case-insensitive matching. Enhanced modal with summary stats (total rows / unique tags / would be removed), severity color-coding (mild=yellow, moderate=orange, heavy=red), searchable tag list, hover preview showing removal count. Actions: Keep All / Keep First Only / Keep Last Only / Cancel.
@@ -60,6 +60,8 @@ client/src/
 - **Session persistence**: Rows and config auto-saved to localStorage (`ec-session-rows`, `ec-session-config`, `ec-session-state`). Resume banner on reopen with confirmation if data already loaded. localStorage quota warning shown on full storage.
 - **Guided Tour**: Pulsing blue highlight ring walks users through app features. Auto-triggers for first-time users (per phase: landing/loaded/results). "Take a Tour" button on landing page for manual re-trigger. Only scrolls to target on step change (not during polling). Stored in `ec-tour-landing`, `ec-tour-loaded`, `ec-tour-results` localStorage keys.
 - **Select All**: Only selects visible/filtered rows when search is active (was selecting all rows regardless of filter)
+- **Label font**: Configurable font family (Courier New default, Arial, Roboto Mono, JetBrains Mono). Auto-size tag font option (binary search fills ~92% QR width). Show/hide folder path on label toggle. Reduced text padding (4px).
+- **Print grouping**: Print output groups labels by main folder with page headers and page breaks between groups. Path text removed from individual labels (embedded in QR image only when showPathOnLabel=true).
 - Professional printing optimized for standard printers (Brother, Zebra, Dymo)
 - Dark/light theme with localStorage persistence
 - Gallery view, scan viewer with keyboard navigation (G=generate, Z=zip, P=print, C=config, ?=help)
