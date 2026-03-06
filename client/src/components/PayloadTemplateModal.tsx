@@ -90,7 +90,7 @@ export default function PayloadTemplateModal({
         )}
         <div className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-4" style={{ background: c.bg2 }}>
           <span className="text-[13px]" style={{ color: c.tx2 }}>Overwrite existing payloads</span>
-          <button data-testid="button-template-overwrite" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: templateOverwrite ? '#F5A623' : c.bg3, border: templateOverwrite ? 'none' : `1px solid ${c.bdr}` }} onClick={() => setTemplateOverwrite(p => !p)}>
+          <button data-testid="button-template-overwrite" aria-pressed={templateOverwrite} aria-label="Overwrite existing payloads" className="w-10 h-[22px] rounded-full relative transition-colors" style={{ background: templateOverwrite ? '#F5A623' : c.bg3, border: templateOverwrite ? 'none' : `1px solid ${c.bdr}` }} onClick={() => setTemplateOverwrite(p => !p)}>
             <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: templateOverwrite ? '22px' : '3px' }} />
           </button>
         </div>

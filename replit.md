@@ -72,6 +72,14 @@ client/src/
 - "Re-generate" label + RotateCcw icon on Generate button when returning from results view
 - Results toolbar labels: "QR Config" (opens settings), "Edit Data" (returns to data table)
 
+## Production Hardening
+- **ErrorBoundary**: Wraps `<Home />` in `App.tsx` — catches render errors, shows recovery UI with Reload button instead of white screen
+- **ZIP export error handling**: Skips malformed images, throws descriptive error if all images are invalid, caller shows alert on failure
+- **HTML escaping in print**: `escapeHTML()` sanitizes all user data (asset tags, folder names) interpolated into print HTML to prevent XSS
+- **Accessibility**: `aria-pressed` on all toggle buttons, `aria-label` on search input and toggle buttons
+- **Verification resilience**: `handleStartVerify` wrapped in try/catch — errors surface as a VerifyResult, UI never gets stuck
+- **Memory management**: "Edit Data" clears generated images from state; large batch warning (>500 at 600+ DPI) shows confirm dialog with estimated memory usage
+
 ## Important Notes
 - 100% client-side - no data leaves the browser (privacy requirement)
 - The inline style theming system is intentional, not Tailwind classes

@@ -552,6 +552,12 @@ export default function Home() {
     const count = indices.length;
     if (count === 0) return;
 
+    if (count > 500 && config.dpi >= 600) {
+      const estimatedMB = Math.round(count * 0.15);
+      const proceed = window.confirm(`You are about to generate ${count} QR codes at ${config.dpi} DPI. This may use approximately ${estimatedMB}MB of memory and could slow down your browser.\n\nContinue?`);
+      if (!proceed) return;
+    }
+
     genCancelRef.current = false;
     setProgress({ current: 0, total: count, asset: rows[indices[0]]?.assetTag || '' });
     setAppState('generating');
@@ -710,48 +716,62 @@ export default function Home() {
     setVerifyProgress(0);
     setVerifyResults([]);
 
-    const skippedRows = rows.filter((r, idx) =>
-      !r.valid && (selectedRows.size === 0 || selectedRows.has(idx))
-    );
+    try {
+      const skippedRows = rows.filter((r, idx) =>
+        !r.valid && (selectedRows.size === 0 || selectedRows.has(idx))
+      );
 
-    const itemsWithIdx = generatedImages
-      .map((img, idx) => ({ img, origIdx: idx }))
-      .filter(({ img }) => img.dataURL);
+      const itemsWithIdx = generatedImages
+        .map((img, idx) => ({ img, origIdx: idx }))
+        .filter(({ img }) => img.dataURL);
 
-    const totalItems = itemsWithIdx.length + skippedRows.length;
+      const totalItems = itemsWithIdx.length + skippedRows.length;
 
-    for (let i = 0; i < itemsWithIdx.length; i++) {
-      const { img: item, origIdx } = itemsWithIdx[i];
-      const result = await verifyQR(item.qrOnlyDataURL, item.payload, item.assetTag, item.mainFolder, item.subFolder);
-      const rowIdx = generatedIndices[origIdx];
-      const sourceRow = rowIdx != null ? rows[rowIdx] : undefined;
-      if (sourceRow) {
-        result.dataValid = sourceRow.valid;
-        result.dataWarning = sourceRow.warning;
-      } else {
-        result.dataWarning = 'Source row not found';
-        result.dataValid = false;
+      for (let i = 0; i < itemsWithIdx.length; i++) {
+        const { img: item, origIdx } = itemsWithIdx[i];
+        const result = await verifyQR(item.qrOnlyDataURL, item.payload, item.assetTag, item.mainFolder, item.subFolder);
+        const rowIdx = generatedIndices[origIdx];
+        const sourceRow = rowIdx != null ? rows[rowIdx] : undefined;
+        if (sourceRow) {
+          result.dataValid = sourceRow.valid;
+          result.dataWarning = sourceRow.warning;
+        } else {
+          result.dataWarning = 'Source row not found';
+          result.dataValid = false;
+        }
+        setVerifyResults(prev => [...prev, result]);
+        setVerifyProgress(Math.round(((i + 1) / totalItems) * 100));
+        await new Promise(r => setTimeout(r, 50));
       }
-      setVerifyResults(prev => [...prev, result]);
-      setVerifyProgress(Math.round(((i + 1) / totalItems) * 100));
-      await new Promise(r => setTimeout(r, 50));
-    }
 
-    for (let i = 0; i < skippedRows.length; i++) {
-      const row = skippedRows[i];
-      const skippedResult: VerifyResult = {
-        assetTag: row.assetTag,
-        folder: [row.mainFolder, row.subFolder].filter(Boolean).join('/'),
-        payload: row.payload || '',
+      for (let i = 0; i < skippedRows.length; i++) {
+        const row = skippedRows[i];
+        const skippedResult: VerifyResult = {
+          assetTag: row.assetTag,
+          folder: [row.mainFolder, row.subFolder].filter(Boolean).join('/'),
+          payload: row.payload || '',
+          passed: false,
+          decodedMatch: false,
+          detail: 'Skipped — data validation failed',
+          dataValid: false,
+          dataWarning: row.warning || 'Row has validation errors',
+        };
+        setVerifyResults(prev => [...prev, skippedResult]);
+        setVerifyProgress(Math.round(((itemsWithIdx.length + i + 1) / totalItems) * 100));
+        await new Promise(r => setTimeout(r, 50));
+      }
+    } catch (err) {
+      console.error('Verification failed:', err);
+      setVerifyResults(prev => [...prev, {
+        assetTag: 'Error',
+        folder: '',
+        payload: '',
         passed: false,
         decodedMatch: false,
-        detail: 'Skipped — data validation failed',
+        detail: `Verification error: ${err instanceof Error ? err.message : 'Unknown error'}`,
         dataValid: false,
-        dataWarning: row.warning || 'Row has validation errors',
-      };
-      setVerifyResults(prev => [...prev, skippedResult]);
-      setVerifyProgress(Math.round(((itemsWithIdx.length + i + 1) / totalItems) * 100));
-      await new Promise(r => setTimeout(r, 50));
+        dataWarning: 'Verification process encountered an error',
+      }]);
     }
 
     setVerifyRunning(false);
@@ -767,6 +787,9 @@ export default function Home() {
     setExportProgress('Preparing ZIP...');
     try {
       await exportToZip(generatedImages, exportFilename);
+    } catch (err) {
+      console.error('ZIP export failed:', err);
+      alert(`ZIP export failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setExportProgress(null);
     }
@@ -1057,7 +1080,7 @@ export default function Home() {
                     <button data-testid="button-swap-file" className="flex items-center gap-1.5 text-[13px] px-3 py-1.5 rounded-lg transition-colors" style={{ color: c.tx3, border: `1px solid ${c.bdr}` }} onClick={handleSwapFile}><Upload className="w-3.5 h-3.5" />{!isMobile && 'New file'}</button>
                     <div className="relative flex-1 min-w-0">
                       <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style={{ color: c.tx3 }} />
-                      <input data-testid="input-search" type="text" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setDataPage(0); }} />
+                      <input data-testid="input-search" type="text" aria-label="Search assets" placeholder="Search assets..." className={`pl-8 pr-3 py-1.5 rounded-lg text-[13px] outline-none ${isMobile ? 'w-full' : 'w-48'}`} style={{ background: c.bg2, border: `1px solid ${c.bdr}`, color: c.tx }} value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setDataPage(0); }} />
                     </div>
                   </div>
                 </div>
@@ -1316,7 +1339,7 @@ export default function Home() {
                     <button data-testid="button-print" className={`flex items-center gap-1.5 bg-[#2A5A9E] text-white ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} onMouseEnter={(e) => (e.currentTarget.style.background = '#1B3F6F')} onMouseLeave={(e) => (e.currentTarget.style.background = '#2A5A9E')} onClick={() => setShowPrintPreview(true)}><Printer className="w-4 h-4" />{!isMobile && 'Print'}</button>
                     <button data-testid="button-verify" className={`flex items-center gap-1.5 ${isMobile ? 'px-3 py-1.5' : 'px-4 py-2'} rounded-lg font-semibold text-[13px] transition-colors`} style={{ background: c.bg3, color: c.tx, border: `1px solid ${c.bdr}` }} onClick={handleStartVerify}><ScanLine className="w-4 h-4" />{!isMobile && 'Verify'}</button>
                     <button data-testid="button-folder-tree" className={`flex items-center gap-1.5 ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} rounded-lg text-[13px] transition-colors`} style={{ color: c.tx3 }} onClick={() => setShowFolderTree(true)}><FolderOpen className="w-3.5 h-3.5" />{!isMobile && 'Folders'}</button>
-                    <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => setAppState('loaded')}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Edit Data'}</button>
+                    <button data-testid="button-regenerate" className={`flex items-center gap-1.5 text-[13px] ${isMobile ? 'px-2.5 py-1.5' : 'px-3 py-2'} transition-colors`} style={{ color: c.tx3 }} onClick={() => { setAppState('loaded'); setGeneratedImages([]); setGalleryPage(0); }}><RotateCcw className="w-3.5 h-3.5" />{!isMobile && 'Edit Data'}</button>
                   </div>
                 </div>
 

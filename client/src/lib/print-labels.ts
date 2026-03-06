@@ -1,6 +1,10 @@
 import type { GeneratedQR } from './qr-renderer';
 import type { QRConfig } from './qr-renderer';
 
+function escapeHTML(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 export function printLabels(
   images: GeneratedQR[],
   config: QRConfig,
@@ -28,7 +32,7 @@ export function printLabels(
   const labelH = config.labelH;
 
   const fontFam = config.fontFamily || 'Courier New';
-  const fontCSS = fontFam === 'Arial' ? "Arial, sans-serif" : `'${fontFam}', monospace`;
+  const fontCSS = fontFam === 'Arial' ? "Arial, sans-serif" : `'${escapeHTML(fontFam)}', monospace`;
 
   const grouped: Record<string, GeneratedQR[]> = {};
   for (const item of itemsToPrint) {
@@ -40,12 +44,12 @@ export function printLabels(
   const sectionsHTML = Object.entries(grouped).map(([folder, items]) => {
     const labelsHTML = items.map(item => `
       <div class="label" style="width:${labelW}mm; height:${labelH}mm;">
-        <img src="${item.dataURL}" alt="${item.assetTag}" />
+        <img src="${item.dataURL}" alt="${escapeHTML(item.assetTag)}" />
       </div>
     `).join('');
     return `
       <div class="folder-group">
-        <div class="folder-header">${folder}</div>
+        <div class="folder-header">${escapeHTML(folder)}</div>
         <div class="container">${labelsHTML}</div>
       </div>
     `;

@@ -14,8 +14,14 @@ function base64ToUint8Array(base64: string): Uint8Array {
 export async function exportToZip(images: GeneratedQR[], customFilename?: string): Promise<void> {
   const zip = new JSZip();
   const usedPaths = new Map<string, number>();
+  let skipped = 0;
 
   for (const img of images) {
+    if (!img.dataURL) {
+      skipped++;
+      continue;
+    }
+
     let folderPath = '';
     if (img.mainFolder && img.subFolder) {
       folderPath = `${sanitize(img.mainFolder)}/${sanitize(img.subFolder)}/`;
@@ -38,9 +44,19 @@ export async function exportToZip(images: GeneratedQR[], customFilename?: string
     }
     usedPaths.set(fullPath, 1);
 
-    const base64 = img.dataURL.split(',')[1];
-    const binaryData = base64ToUint8Array(base64);
-    zip.file(folderPath + filename, binaryData, { binary: true });
+    try {
+      const base64 = img.dataURL.split(',')[1];
+      if (!base64) throw new Error(`Invalid image data for ${img.assetTag}`);
+      const binaryData = base64ToUint8Array(base64);
+      zip.file(folderPath + filename, binaryData, { binary: true });
+    } catch (e) {
+      skipped++;
+      console.warn(`Skipped ${img.assetTag} during ZIP export:`, e);
+    }
+  }
+
+  if (zip.files && Object.keys(zip.files).length === 0) {
+    throw new Error('No valid QR codes to export. All images were skipped.');
   }
 
   const now = new Date();
@@ -55,6 +71,10 @@ export async function exportToZip(images: GeneratedQR[], customFilename?: string
     compressionOptions: { level: 6 },
   });
   saveAs(blob, zipName);
+
+  if (skipped > 0) {
+    console.warn(`ZIP export complete. ${skipped} image(s) were skipped due to errors.`);
+  }
 }
 
 function sanitize(name: string): string {

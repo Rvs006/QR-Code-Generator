@@ -126,7 +126,7 @@ export default function QRConfigPanel({
                   <span className="text-[13px] block" style={{ color: c.tx2 }}>Pixel-perfect mode</span>
                   <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Aligns QR pixels to exact screen pixels for sharper output.</span>
                 </div>
-                <button data-testid="button-pixel-perfect" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
+                <button data-testid="button-pixel-perfect" aria-pressed={config.pixelPerfect} aria-label="Pixel-perfect mode" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.pixelPerfect ? '#4CAF50' : c.bg3, border: config.pixelPerfect ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('pixelPerfect', !config.pixelPerfect)}>
                   <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.pixelPerfect ? '22px' : '3px' }} />
                 </button>
               </div>
@@ -167,7 +167,7 @@ export default function QRConfigPanel({
                   <span className="text-[13px] block" style={{ color: c.tx2 }}>Auto-size tag font</span>
                   <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Automatically sizes the asset tag text to match the QR code width.</span>
                 </div>
-                <button data-testid="button-font-tag-auto" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.fontTagAuto ? '#4CAF50' : c.bg3, border: config.fontTagAuto ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('fontTagAuto', !config.fontTagAuto)}>
+                <button data-testid="button-font-tag-auto" aria-pressed={config.fontTagAuto} aria-label="Auto-size tag font" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.fontTagAuto ? '#4CAF50' : c.bg3, border: config.fontTagAuto ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('fontTagAuto', !config.fontTagAuto)}>
                   <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.fontTagAuto ? '22px' : '3px' }} />
                 </button>
               </div>
@@ -188,7 +188,7 @@ export default function QRConfigPanel({
                   <span className="text-[13px] block" style={{ color: c.tx2 }}>Show folder path on label</span>
                   <span className="text-[11px] leading-snug" style={{ color: c.tx3 }}>Display folder/sub-folder text below the asset tag on each QR image.</span>
                 </div>
-                <button data-testid="button-show-path" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.showPathOnLabel ? '#4CAF50' : c.bg3, border: config.showPathOnLabel ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('showPathOnLabel', !config.showPathOnLabel)}>
+                <button data-testid="button-show-path" aria-pressed={!!config.showPathOnLabel} aria-label="Show folder path on label" className="w-10 h-[22px] rounded-full relative transition-colors flex-shrink-0 ml-3" style={{ background: config.showPathOnLabel ? '#4CAF50' : c.bg3, border: config.showPathOnLabel ? 'none' : `1px solid ${c.bdr}` }} onClick={() => handleUpdateConfig('showPathOnLabel', !config.showPathOnLabel)}>
                   <div className="w-4 h-4 bg-white rounded-full absolute top-[3px] transition-transform" style={{ left: config.showPathOnLabel ? '22px' : '3px' }} />
                 </button>
               </div>
